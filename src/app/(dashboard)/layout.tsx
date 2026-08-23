@@ -22,6 +22,7 @@ import {
   Zap,
   ChevronDown,
   Shield,
+  Link2,
 } from 'lucide-react';
 
 const navigation = [
@@ -36,7 +37,7 @@ const navigation = [
 ];
 
 const secondaryNav = [
-  { name: 'Deriv Integration', href: '/settings/deriv-integration', icon: Link, highlight: true },
+  { name: 'Deriv Integration', href: '/settings/deriv-integration', icon: Link2, highlight: true },
   { name: 'Settings', href: '/settings', icon: Settings },
   { name: 'Notifications', href: '/notifications', icon: Bell },
 ];
