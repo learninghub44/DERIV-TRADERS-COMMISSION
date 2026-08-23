@@ -1,17 +1,16 @@
 {
-  "name": "deriv-partner-hub",
+  "name": "deriv-tech",
   "version": "1.0.0",
   "private": true,
-  "description": "DERIV TECH - Independent analytics platform for Deriv API application operators",
+  "description": "DERIV TECH - Multi-tenant SaaS analytics platform for Deriv API application operators",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "db:generate": "supabase db diff",
-    "db:push": "supabase db push",
-    "db:reset": "supabase db reset"
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },
   "dependencies": {
     "next": "^14.2.0",
@@ -27,9 +26,12 @@
     "lucide-react": "^0.400.0",
     "sonner": "^1.5.0",
     "uuid": "^10.0.0",
-    "papaparse": "^5.4.0"
+    "papaparse": "^5.4.0",
+    "jose": "^5.6.0"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.6.0",
+    "wrangler": "^3.80.0",
     "typescript": "^5.5.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",

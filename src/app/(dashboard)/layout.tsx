@@ -36,6 +36,7 @@ const navigation = [
 ];
 
 const secondaryNav = [
+  { name: 'Deriv Integration', href: '/settings/deriv-integration', icon: Link, highlight: true },
   { name: 'Settings', href: '/settings', icon: Settings },
   { name: 'Notifications', href: '/notifications', icon: Bell },
 ];
