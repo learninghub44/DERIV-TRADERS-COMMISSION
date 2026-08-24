@@ -30,20 +30,18 @@
     "papaparse": "^5.4.0",
     "jose": "^5.6.0"
   },
-  "devDependencies": {
-    "@opennextjs/cloudflare": "^1.6.0",
-    "wrangler": "^4.86.0",
-    "typescript": "^5.5.0",
-    "@types/react": "^18.3.0",
-    "@types/react-dom": "^18.3.0",
-    "@types/node": "^20.14.0",
-    "@types/uuid": "^10.0.0",
-    "@types/papaparse": "^5.3.0",
-    "tailwindcss": "^3.4.0",
-    "autoprefixer": "^10.4.0",
-    "postcss": "^8.4.0",
-    "eslint": "^8.57.0",
-    "eslint-config-next": "^15.5.21",
-    "vitest": "^2.1.0"
-  }
+  ""devDependencies": {
+  "@opennextjs/cloudflare": "^1.6.0",
+  "wrangler": "^4.86.0",
+  "typescript": "^5.5.0",
+  "@types/react": "^18.3.0",
+  "@types/react-dom": "^18.3.0",
+  "@types/node": "^20.14.0",
+  "@types/uuid": "^10.0.0",
+  "@types/papaparse": "^5.3.0",
+  "tailwindcss": "^3.4.0",
+  "autoprefixer": "^10.4.0",
+  "postcss": "^8.4.0",
+  "eslint": "^8.57.0",
+  "eslint-config-next": "^15.5.21"
 }
