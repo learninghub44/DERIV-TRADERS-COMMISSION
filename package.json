@@ -1,3 +1,4 @@
+
 {
   "name": "deriv-tech",
   "version": "1.0.0",
@@ -9,7 +10,6 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },
@@ -42,4 +42,7 @@
     "tailwindcss": "^3.4.0",
     "autoprefixer": "^10.4.0",
     "postcss": "^8.4.0",
-    "esli
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^15.5.21"
+  }
+}
