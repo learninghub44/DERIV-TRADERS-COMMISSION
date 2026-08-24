@@ -1,6 +1,18 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+export async function middleware(request: NextRequest) {
+  return updateSession(request);
+}
+
+export const config = {
+  // Run on every route except static assets, images, and Next.js internals,
+  // so protected-path checks below actually execute on every request.
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
+};
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,

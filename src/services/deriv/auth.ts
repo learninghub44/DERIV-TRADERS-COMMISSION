@@ -114,6 +114,37 @@ export function buildDerivAuthUrl(config: DerivOAuthConfig, codeChallenge: strin
  * - code_verifier: The original PKCE verifier
  * - redirect_uri: Must match the registered URI
  */
+/**
+ * Exchange a refresh token for a new access token.
+ * Must be called server-side only. Used when a stored access token
+ * has expired (Deriv returns 401) and auth_method is 'oauth' - manual
+ * api_token connections have no refresh token and must be reconnected
+ * by the user instead.
+ */
+export async function refreshAccessToken(
+  refreshToken: string,
+  clientId: string
+): Promise<DerivTokenResponse> {
+  const response = await fetch(DERIV_TOKEN_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      client_id: clientId,
+      refresh_token: refreshToken,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error_description || `Token refresh failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 export async function exchangeCodeForToken(
   code: string,
   codeVerifier: string,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { exchangeCodeForToken } from '@/services/deriv/auth';
+import { encrypt } from '@/lib/encryption';
 
 /**
  * DERIV TECH - Deriv OAuth 2.0 Callback Handler
@@ -97,8 +98,9 @@ export async function GET(request: NextRequest) {
         deriv_app_id: process.env.NEXT_PUBLIC_DERIV_APP_ID!,
         app_name: appName,
         app_status: appStatus,
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token || null,
+        auth_method: 'oauth',
+        access_token: encrypt(tokenData.access_token),
+        refresh_token: tokenData.refresh_token ? encrypt(tokenData.refresh_token) : null,
         token_expires_at: tokenData.expires_in
           ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
           : null,

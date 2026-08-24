@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { decrypt, encrypt } from '@/lib/encryption';
+import { refreshAccessToken } from '@/services/deriv/auth';
 
 /**
  * DERIV TECH - Deriv Data Synchronization API
@@ -41,7 +43,7 @@ export async function POST(request: NextRequest) {
     // Get connected integrations for this organization
     let query = supabase
       .from('deriv_integrations')
-      .select('id, organization_id, deriv_app_id, access_token')
+      .select('id, organization_id, deriv_app_id, access_token, refresh_token, auth_method')
       .eq('organization_id', member.organization_id)
       .eq('connection_status', 'connected');
 
@@ -75,15 +77,59 @@ export async function POST(request: NextRequest) {
           date_to: now.toISOString().split('T')[0],
         });
 
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_DERIV_API_BASE_URL}/applications/v1/markup-statistics?${params.toString()}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${integration.access_token}`,
-              'Deriv-App-ID': integration.deriv_app_id,
-            },
+        let plaintextToken: string;
+        try {
+          plaintextToken = decrypt(integration.access_token);
+        } catch {
+          throw new Error('Stored credential could not be decrypted');
+        }
+
+        const derivApiUrl = `${process.env.NEXT_PUBLIC_DERIV_API_BASE_URL}/applications/v1/markup-statistics?${params.toString()}`;
+
+        let response = await fetch(derivApiUrl, {
+          headers: {
+            'Authorization': `Bearer ${plaintextToken}`,
+            'Deriv-App-ID': integration.deriv_app_id,
+          },
+        });
+
+        // If the access token expired, try a silent refresh (OAuth
+        // connections only - manual API tokens have no refresh token
+        // and must be reconnected by the user).
+        if (response.status === 401 && integration.auth_method === 'oauth' && integration.refresh_token) {
+          try {
+            const plaintextRefresh = decrypt(integration.refresh_token);
+            const refreshed = await refreshAccessToken(
+              plaintextRefresh,
+              process.env.NEXT_PUBLIC_DERIV_APP_ID!
+            );
+
+            plaintextToken = refreshed.access_token;
+
+            await supabase
+              .from('deriv_integrations')
+              .update({
+                access_token: encrypt(refreshed.access_token),
+                refresh_token: refreshed.refresh_token
+                  ? encrypt(refreshed.refresh_token)
+                  : integration.refresh_token,
+                token_expires_at: refreshed.expires_in
+                  ? new Date(Date.now() + refreshed.expires_in * 1000).toISOString()
+                  : null,
+              })
+              .eq('id', integration.id);
+
+            response = await fetch(derivApiUrl, {
+              headers: {
+                'Authorization': `Bearer ${plaintextToken}`,
+                'Deriv-App-ID': integration.deriv_app_id,
+              },
+            });
+          } catch {
+            // Refresh failed - fall through with the original 401 response,
+            // handled below as "authorization expired".
           }
-        );
+        }
 
         if (response.ok) {
           const stats = await response.json();
@@ -144,12 +190,15 @@ export async function POST(request: NextRequest) {
 
           results.push({ integrationId: integration.id, status: 'success', recordsSynced: syncedCount });
         } else if (response.status === 401) {
-          // Token expired or revoked
+          // Token expired/revoked and refresh (if applicable) didn't help
           await supabase
             .from('deriv_integrations')
             .update({
               connection_status: 'error',
-              sync_error: 'Authorization expired. Please reconnect your Deriv application.',
+              sync_error:
+                integration.auth_method === 'oauth'
+                  ? 'Authorization expired and could not be refreshed. Please reconnect your Deriv application.'
+                  : 'This API token is no longer valid. Please generate a new one and reconnect.',
             })
             .eq('id', integration.id);
 
