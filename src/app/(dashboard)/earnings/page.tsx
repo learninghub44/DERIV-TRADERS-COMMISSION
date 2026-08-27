@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { formatCurrency } from '@/lib/utils';
 import { DollarSign, RefreshCw, BarChart3, TrendingUp, Award } from 'lucide-react';
 
@@ -13,8 +12,6 @@ export default function EarningsPage() {
     total: 0,
   });
   const [monthlyData, setMonthlyData] = useState<any[]>([]);
-  const supabase = createClient();
-
   useEffect(() => {
     loadEarningsData();
   }, []);
@@ -22,32 +19,12 @@ export default function EarningsPage() {
   const loadEarningsData = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const res = await fetch('/api/earnings');
+      if (!res.ok) return;
+      const { markupData, commissionData } = await res.json();
 
-      const { data: member } = await supabase
-        .from('organization_members')
-        .select('organization_id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .single();
-
-      if (!member) return;
-
-      // Get markup totals
-      const { data: markupData } = await supabase
-        .from('markup_records')
-        .select('total_markup, record_date')
-        .eq('organization_id', member.organization_id);
-
-      // Get commission totals
-      const { data: commissionData } = await supabase
-        .from('commission_records')
-        .select('amount, record_date')
-        .eq('organization_id', member.organization_id);
-
-      const totalMarkup = (markupData || []).reduce((sum, r) => sum + Number(r.total_markup), 0);
-      const totalCommissions = (commissionData || []).reduce((sum, r) => sum + Number(r.amount), 0);
+      const totalMarkup = (markupData || []).reduce((sum: number, r: any) => sum + Number(r.total_markup), 0);
+      const totalCommissions = (commissionData || []).reduce((sum: number, r: any) => sum + Number(r.amount), 0);
 
       setEarnings({
         markup: totalMarkup,
@@ -57,12 +34,12 @@ export default function EarningsPage() {
 
       // Group by month
       const months: Record<string, { markup: number; commissions: number }> = {};
-      (markupData || []).forEach(r => {
+      (markupData || []).forEach((r: any) => {
         const month = r.record_date.substring(0, 7);
         if (!months[month]) months[month] = { markup: 0, commissions: 0 };
         months[month].markup += Number(r.total_markup);
       });
-      (commissionData || []).forEach(r => {
+      (commissionData || []).forEach((r: any) => {
         const month = r.record_date.substring(0, 7);
         if (!months[month]) months[month] = { markup: 0, commissions: 0 };
         months[month].commissions += Number(r.amount);

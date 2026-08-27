@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { getCurrentUser } from '@/lib/auth';
 import { buildDerivAuthUrl, generatePKCE, generateCodeChallenge } from '@/services/deriv/auth';
 import crypto from 'crypto';
 
 export async function POST() {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

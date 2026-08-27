@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { User, RefreshCw, Save } from 'lucide-react';
 
 export default function ProfilePage() {
@@ -9,8 +8,6 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [fullName, setFullName] = useState('');
-  const supabase = createClient();
-
   useEffect(() => {
     loadProfile();
   }, []);
@@ -18,17 +15,12 @@ export default function ProfilePage() {
   const loadProfile = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+      const res = await fetch('/api/auth/me');
+      if (!res.ok) return;
+      const { user: data } = await res.json();
 
       setProfile(data);
-      setFullName(data?.full_name || '');
+      setFullName(data?.fullName || '');
     } catch (error) {
       console.error('Failed to load profile:', error);
     } finally {
@@ -39,13 +31,11 @@ export default function ProfilePage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      await supabase
-        .from('profiles')
-        .update({ full_name: fullName })
-        .eq('id', user.id);
+      await fetch('/api/auth/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullName }),
+      });
     } catch (error) {
       console.error('Failed to save profile:', error);
     } finally {

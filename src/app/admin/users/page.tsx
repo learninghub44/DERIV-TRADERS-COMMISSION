@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { formatDate } from '@/lib/utils';
 import { Users, RefreshCw, Search } from 'lucide-react';
 
@@ -9,8 +8,6 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const supabase = createClient();
-
   useEffect(() => {
     loadUsers();
   }, []);
@@ -18,11 +15,9 @@ export default function AdminUsersPage() {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-
+      const res = await fetch('/api/admin/users');
+      if (!res.ok) return;
+      const { users: data } = await res.json();
       setUsers(data || []);
     } catch (error) {
       console.error('Failed to load users:', error);

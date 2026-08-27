@@ -1,15 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { formatRelativeTime } from '@/lib/utils';
 import { Bell, RefreshCw, Check, CheckCheck } from 'lucide-react';
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
-
   useEffect(() => {
     loadNotifications();
   }, []);
@@ -17,15 +14,9 @@ export default function NotificationsPage() {
   const loadNotifications = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
+      const res = await fetch('/api/notifications');
+      if (!res.ok) return;
+      const { notifications: data } = await res.json();
       setNotifications(data || []);
     } catch (error) {
       console.error('Failed to load notifications:', error);
@@ -35,10 +26,11 @@ export default function NotificationsPage() {
   };
 
   const markAsRead = async (id: string) => {
-    await supabase
-      .from('notifications')
-      .update({ read: true })
-      .eq('id', id);
+    await fetch('/api/notifications', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
 
     setNotifications(prev =>
       prev.map(n => n.id === id ? { ...n, read: true } : n)
@@ -46,14 +38,11 @@ export default function NotificationsPage() {
   };
 
   const markAllAsRead = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    await supabase
-      .from('notifications')
-      .update({ read: true })
-      .eq('user_id', user.id)
-      .eq('read', false);
+    await fetch('/api/notifications', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true }),
+    });
 
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };

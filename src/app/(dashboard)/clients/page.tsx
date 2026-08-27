@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils';
 import { Users, RefreshCw, Search } from 'lucide-react';
 
@@ -9,8 +8,6 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const supabase = createClient();
-
   useEffect(() => {
     loadClients();
   }, []);
@@ -18,24 +15,9 @@ export default function ClientsPage() {
   const loadClients = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: member } = await supabase
-        .from('organization_members')
-        .select('organization_id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .single();
-
-      if (!member) return;
-
-      const { data } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('organization_id', member.organization_id)
-        .order('generated_markup', { ascending: false });
-
+      const res = await fetch('/api/clients');
+      if (!res.ok) return;
+      const { clients: data } = await res.json();
       setClients(data || []);
     } catch (error) {
       console.error('Failed to load clients:', error);

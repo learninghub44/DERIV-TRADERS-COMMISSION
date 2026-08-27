@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { sql } from '@/lib/db';
+import { getOrgContext } from '@/lib/org';
 import { encrypt, maskSecret } from '@/lib/encryption';
 
 /**
@@ -20,12 +21,11 @@ import { encrypt, maskSecret } from '@/lib/encryption';
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const { user, orgId } = ctx;
 
     const body = await request.json().catch(() => ({}));
     const appId = typeof body.appId === 'string' ? body.appId.trim() : '';
@@ -36,18 +36,6 @@ export async function POST(request: NextRequest) {
     }
     if (!apiToken || apiToken.length < 8 || apiToken.length > 512) {
       return NextResponse.json({ error: 'A valid Deriv API token is required' }, { status: 400 });
-    }
-
-    // Get user's organization
-    const { data: member } = await supabase
-      .from('organization_members')
-      .select('organization_id')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .single();
-
-    if (!member) {
-      return NextResponse.json({ error: 'No organization' }, { status: 400 });
     }
 
     // Validate the token actually works before storing it.
@@ -79,44 +67,47 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { error: insertError } = await supabase
-      .from('deriv_integrations')
-      .upsert({
-        organization_id: member.organization_id,
-        deriv_app_id: appId,
-        app_name: 'Deriv Application (API Token)',
-        app_status: 'active',
-        auth_method: 'api_token',
-        access_token: encrypt(apiToken),
-        refresh_token: null,
-        token_expires_at: null,
-        scope: ['application_read'],
-        connection_status: 'connected',
-        markup_percentage: 0,
-      }, {
-        onConflict: 'organization_id,deriv_app_id',
-      });
-
-    if (insertError) {
+    try {
+      await sql`
+        INSERT INTO deriv_integrations (
+          organization_id, deriv_app_id, app_name, app_status, auth_method,
+          access_token, refresh_token, token_expires_at, scope,
+          connection_status, markup_percentage
+        )
+        VALUES (
+          ${orgId}, ${appId}, 'Deriv Application (API Token)', 'active', 'api_token',
+          ${encrypt(apiToken)}, NULL, NULL, ${['application_read']},
+          'connected', 0
+        )
+        ON CONFLICT (organization_id, deriv_app_id)
+        DO UPDATE SET
+          app_name = EXCLUDED.app_name,
+          auth_method = EXCLUDED.auth_method,
+          access_token = EXCLUDED.access_token,
+          refresh_token = NULL,
+          token_expires_at = NULL,
+          connection_status = 'connected'
+      `;
+    } catch {
       throw new Error('Failed to store integration');
     }
 
-    await supabase.from('notifications').insert({
-      user_id: user.id,
-      organization_id: member.organization_id,
-      title: 'Deriv Application Connected',
-      message: 'Your Deriv application has been connected via API token. Markup data will sync automatically.',
-      type: 'success',
-    });
+    await sql`
+      INSERT INTO notifications (user_id, organization_id, title, message, type)
+      VALUES (
+        ${user.id}, ${orgId}, 'Deriv Application Connected',
+        'Your Deriv application has been connected via API token. Markup data will sync automatically.',
+        'success'
+      )
+    `;
 
-    await supabase.from('audit_logs').insert({
-      actor_id: user.id,
-      actor_email: user.email,
-      organization_id: member.organization_id,
-      action: 'deriv_connected',
-      resource_type: 'deriv_integration',
-      details: { status: 'connected', auth_method: 'api_token' },
-    });
+    await sql`
+      INSERT INTO audit_logs (actor_id, actor_email, organization_id, action, resource_type, details)
+      VALUES (
+        ${user.id}, ${user.email}, ${orgId}, 'deriv_connected', 'deriv_integration',
+        ${JSON.stringify({ status: 'connected', auth_method: 'api_token' })}
+      )
+    `;
 
     return NextResponse.json({ success: true, maskedToken: maskSecret(apiToken) });
   } catch (error) {

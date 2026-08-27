@@ -1,15 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { formatDate } from '@/lib/utils';
 import { CreditCard, RefreshCw } from 'lucide-react';
 
 export default function AdminSubscriptionsPage() {
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
-
   useEffect(() => {
     loadSubscriptions();
   }, []);
@@ -17,11 +14,9 @@ export default function AdminSubscriptionsPage() {
   const loadSubscriptions = async () => {
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from('subscriptions')
-        .select('*, organizations(name)')
-        .order('created_at', { ascending: false });
-
+      const res = await fetch('/api/admin/subscriptions');
+      if (!res.ok) return;
+      const { subscriptions: data } = await res.json();
       setSubscriptions(data || []);
     } catch (error) {
       console.error('Failed to load subscriptions:', error);
@@ -61,7 +56,7 @@ export default function AdminSubscriptionsPage() {
           <tbody>
             {subscriptions.map((sub) => (
               <tr key={sub.id} className="border-b border-surface-800/50 hover:bg-surface-800/30">
-                <td className="p-4 text-sm text-white">{sub.organizations?.name || '-'}</td>
+                <td className="p-4 text-sm text-white">{sub.organization_name || '-'}</td>
                 <td className="p-4">
                   <span className={`text-xs px-2 py-1 rounded capitalize ${
                     sub.plan === 'enterprise' ? 'bg-brand-600/10 text-brand-500' :

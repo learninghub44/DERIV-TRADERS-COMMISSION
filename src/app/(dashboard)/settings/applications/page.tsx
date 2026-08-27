@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { formatRelativeTime } from '@/lib/utils';
 import { Settings, RefreshCw, Plus, Trash2, ExternalLink, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 
@@ -9,8 +8,6 @@ export default function ApplicationsPage() {
   const [integrations, setIntegrations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
-  const supabase = createClient();
-
   useEffect(() => {
     loadIntegrations();
   }, []);
@@ -18,24 +15,9 @@ export default function ApplicationsPage() {
   const loadIntegrations = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: member } = await supabase
-        .from('organization_members')
-        .select('organization_id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .single();
-
-      if (!member) return;
-
-      const { data } = await supabase
-        .from('deriv_integrations')
-        .select('*')
-        .eq('organization_id', member.organization_id)
-        .order('created_at', { ascending: false });
-
+      const res = await fetch('/api/deriv/integrations');
+      if (!res.ok) return;
+      const { integrations: data } = await res.json();
       setIntegrations(data || []);
     } catch (error) {
       console.error('Failed to load integrations:', error);

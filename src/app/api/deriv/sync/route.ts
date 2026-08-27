@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { sql } from '@/lib/db';
+import { getOrgContext } from '@/lib/org';
 import { decrypt, encrypt } from '@/lib/encryption';
 import { refreshAccessToken } from '@/services/deriv/auth';
 
@@ -19,39 +20,26 @@ import { refreshAccessToken } from '@/services/deriv/auth';
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const { orgId } = ctx;
 
     const body = await request.json().catch(() => ({}));
 
-    // Get user's organization
-    const { data: member } = await supabase
-      .from('organization_members')
-      .select('organization_id')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .single();
-
-    if (!member) {
-      return NextResponse.json({ error: 'No organization' }, { status: 400 });
-    }
-
     // Get connected integrations for this organization
-    let query = supabase
-      .from('deriv_integrations')
-      .select('id, organization_id, deriv_app_id, access_token, refresh_token, auth_method')
-      .eq('organization_id', member.organization_id)
-      .eq('connection_status', 'connected');
-
-    if (body.integrationId) {
-      query = query.eq('id', body.integrationId);
-    }
-
-    const { data: integrations } = await query;
+    const integrations = body.integrationId
+      ? await sql`
+          SELECT id, organization_id, deriv_app_id, access_token, refresh_token, auth_method
+          FROM deriv_integrations
+          WHERE organization_id = ${orgId} AND connection_status = 'connected' AND id = ${body.integrationId}
+        `
+      : await sql`
+          SELECT id, organization_id, deriv_app_id, access_token, refresh_token, auth_method
+          FROM deriv_integrations
+          WHERE organization_id = ${orgId} AND connection_status = 'connected'
+        `;
 
     if (!integrations || integrations.length === 0) {
       return NextResponse.json({ error: 'No connected integrations' }, { status: 400 });
@@ -62,10 +50,7 @@ export async function POST(request: NextRequest) {
     for (const integration of integrations) {
       try {
         // Update status to syncing
-        await supabase
-          .from('deriv_integrations')
-          .update({ connection_status: 'syncing' })
-          .eq('id', integration.id);
+        await sql`UPDATE deriv_integrations SET connection_status = 'syncing' WHERE id = ${integration.id}`;
 
         // Fetch markup statistics from Deriv REST API
         // Official endpoint: GET /applications/v1/markup-statistics
@@ -106,18 +91,13 @@ export async function POST(request: NextRequest) {
 
             plaintextToken = refreshed.access_token;
 
-            await supabase
-              .from('deriv_integrations')
-              .update({
-                access_token: encrypt(refreshed.access_token),
-                refresh_token: refreshed.refresh_token
-                  ? encrypt(refreshed.refresh_token)
-                  : integration.refresh_token,
-                token_expires_at: refreshed.expires_in
-                  ? new Date(Date.now() + refreshed.expires_in * 1000).toISOString()
-                  : null,
-              })
-              .eq('id', integration.id);
+            await sql`
+              UPDATE deriv_integrations
+              SET access_token = ${encrypt(refreshed.access_token)},
+                  refresh_token = ${refreshed.refresh_token ? encrypt(refreshed.refresh_token) : integration.refresh_token},
+                  token_expires_at = ${refreshed.expires_in ? new Date(Date.now() + refreshed.expires_in * 1000).toISOString() : null}
+              WHERE id = ${integration.id}
+            `;
 
             response = await fetch(derivApiUrl, {
               headers: {
@@ -145,77 +125,74 @@ export async function POST(request: NextRequest) {
               // Skip invalid data
               if (isNaN(markupValue) || markupValue < 0) continue;
 
-              const { error } = await supabase
-                .from('markup_records')
-                .upsert({
-                  organization_id: member.organization_id,
-                  integration_id: integration.id,
-                  record_date: now.toISOString().split('T')[0],
-                  total_markup: markupValue,
-                  contract_count: contractCount,
-                  total_volume: 0,
-                  currency: 'USD',
-                  source: 'deriv',
-                }, {
-                  onConflict: 'integration_id,record_date',
-                });
-
-              if (!error) syncedCount++;
+              try {
+                await sql`
+                  INSERT INTO markup_records (
+                    organization_id, integration_id, record_date, total_markup,
+                    contract_count, total_volume, currency, source
+                  )
+                  VALUES (
+                    ${orgId}, ${integration.id}, ${now.toISOString().split('T')[0]}, ${markupValue},
+                    ${contractCount}, 0, 'USD', 'deriv'
+                  )
+                  ON CONFLICT (integration_id, record_date)
+                  DO UPDATE SET
+                    total_markup = EXCLUDED.total_markup,
+                    contract_count = EXCLUDED.contract_count
+                `;
+                syncedCount++;
+              } catch {
+                // Skip this record, continue with the rest
+              }
             }
           }
 
           // Update integration sync status
-          await supabase
-            .from('deriv_integrations')
-            .update({
-              connection_status: 'connected',
-              last_sync_at: now.toISOString(),
-              last_successful_sync_at: now.toISOString(),
-              sync_error: null,
-            })
-            .eq('id', integration.id);
+          await sql`
+            UPDATE deriv_integrations
+            SET connection_status = 'connected',
+                last_sync_at = ${now.toISOString()},
+                last_successful_sync_at = ${now.toISOString()},
+                sync_error = NULL
+            WHERE id = ${integration.id}
+          `;
 
           // Record sync job (for audit trail)
-          await supabase
-            .from('sync_jobs')
-            .insert({
-              organization_id: member.organization_id,
-              integration_id: integration.id,
-              status: 'completed',
-              sync_type: 'markup',
-              records_synced: syncedCount,
-              started_at: now.toISOString(),
-              completed_at: now.toISOString(),
-            });
+          await sql`
+            INSERT INTO sync_jobs (
+              organization_id, integration_id, status, sync_type,
+              records_synced, started_at, completed_at
+            )
+            VALUES (
+              ${orgId}, ${integration.id}, 'completed', 'markup',
+              ${syncedCount}, ${now.toISOString()}, ${now.toISOString()}
+            )
+          `;
 
           results.push({ integrationId: integration.id, status: 'success', recordsSynced: syncedCount });
         } else if (response.status === 401) {
           // Token expired/revoked and refresh (if applicable) didn't help
-          await supabase
-            .from('deriv_integrations')
-            .update({
-              connection_status: 'error',
-              sync_error:
-                integration.auth_method === 'oauth'
-                  ? 'Authorization expired and could not be refreshed. Please reconnect your Deriv application.'
-                  : 'This API token is no longer valid. Please generate a new one and reconnect.',
-            })
-            .eq('id', integration.id);
+          await sql`
+            UPDATE deriv_integrations
+            SET connection_status = 'error',
+                sync_error = ${
+                  integration.auth_method === 'oauth'
+                    ? 'Authorization expired and could not be refreshed. Please reconnect your Deriv application.'
+                    : 'This API token is no longer valid. Please generate a new one and reconnect.'
+                }
+            WHERE id = ${integration.id}
+          `;
 
           results.push({ integrationId: integration.id, status: 'error', error: 'Authorization expired' });
         } else {
           throw new Error(`Deriv API returned status ${response.status}`);
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-        await supabase
-          .from('deriv_integrations')
-          .update({
-            connection_status: 'error',
-            sync_error: 'Sync failed. Please try again or reconnect.',
-          })
-          .eq('id', integration.id);
+        await sql`
+          UPDATE deriv_integrations
+          SET connection_status = 'error', sync_error = 'Sync failed. Please try again or reconnect.'
+          WHERE id = ${integration.id}
+        `;
 
         results.push({ integrationId: integration.id, status: 'error', error: 'Sync failed' });
       }

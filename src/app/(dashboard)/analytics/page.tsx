@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { formatCurrency } from '@/lib/utils';
 import { PieChart, RefreshCw, Calendar } from 'lucide-react';
 
@@ -14,8 +13,6 @@ export default function AnalyticsPage() {
     topClients: [] as any[],
     dailyEarnings: [] as { date: string; markup: number; commissions: number }[],
   });
-  const supabase = createClient();
-
   useEffect(() => {
     loadAnalytics();
   }, [dateRange]);
@@ -23,43 +20,12 @@ export default function AnalyticsPage() {
   const loadAnalytics = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: member } = await supabase
-        .from('organization_members')
-        .select('organization_id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .single();
-
-      if (!member) return;
+      const res = await fetch(`/api/analytics?dateRange=${encodeURIComponent(dateRange)}`);
+      if (!res.ok) return;
+      const { markupData, commissionData, topClients } = await res.json();
 
       const daysAgo = new Date();
       daysAgo.setDate(daysAgo.getDate() - parseInt(dateRange));
-      const fromDate = daysAgo.toISOString().split('T')[0];
-
-      // Get markup data
-      const { data: markupData } = await supabase
-        .from('markup_records')
-        .select('total_markup, record_date')
-        .eq('organization_id', member.organization_id)
-        .gte('record_date', fromDate);
-
-      // Get commission data
-      const { data: commissionData } = await supabase
-        .from('commission_records')
-        .select('amount, record_date')
-        .eq('organization_id', member.organization_id)
-        .gte('record_date', fromDate);
-
-      // Get top clients
-      const { data: topClients } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('organization_id', member.organization_id)
-        .order('generated_markup', { ascending: false })
-        .limit(5);
 
       // Build daily data
       const dailyMap: Record<string, { markup: number; commissions: number }> = {};
@@ -71,13 +37,13 @@ export default function AnalyticsPage() {
         dailyMap[dateStr] = { markup: 0, commissions: 0 };
       }
 
-      (markupData || []).forEach(r => {
+      (markupData || []).forEach((r: any) => {
         if (dailyMap[r.record_date]) {
           dailyMap[r.record_date].markup += Number(r.total_markup);
         }
       });
 
-      (commissionData || []).forEach(r => {
+      (commissionData || []).forEach((r: any) => {
         if (dailyMap[r.record_date]) {
           dailyMap[r.record_date].commissions += Number(r.amount);
         }

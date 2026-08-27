@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Activity, RefreshCw, Search, Download } from 'lucide-react';
 
@@ -10,8 +9,6 @@ export default function TradingPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [resultFilter, setResultFilter] = useState('all');
-  const supabase = createClient();
-
   useEffect(() => {
     loadTradingActivity();
   }, []);
@@ -19,25 +16,9 @@ export default function TradingPage() {
   const loadTradingActivity = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: member } = await supabase
-        .from('organization_members')
-        .select('organization_id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .single();
-
-      if (!member) return;
-
-      const { data } = await supabase
-        .from('trading_activity')
-        .select('*')
-        .eq('organization_id', member.organization_id)
-        .order('contract_time', { ascending: false })
-        .limit(200);
-
+      const res = await fetch('/api/trading');
+      if (!res.ok) return;
+      const { activities: data } = await res.json();
       setActivities(data || []);
     } catch (error) {
       console.error('Failed to load trading activity:', error);

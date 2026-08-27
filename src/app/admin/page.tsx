@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { Shield, RefreshCw, Building, Users, Activity, TrendingUp, AlertTriangle, Zap } from 'lucide-react';
 import Link from 'next/link';
@@ -18,8 +17,6 @@ export default function AdminPage() {
   });
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const supabase = createClient();
-
   useEffect(() => {
     loadAdminData();
   }, []);
@@ -27,43 +24,20 @@ export default function AdminPage() {
   const loadAdminData = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-      if (profile?.role !== 'super_admin') {
+      const res = await fetch('/api/admin/overview');
+      if (res.status === 403 || res.status === 401) {
         setIsAdmin(false);
+        setLoading(false);
+        return;
+      }
+      if (!res.ok) {
         setLoading(false);
         return;
       }
 
       setIsAdmin(true);
-
-      const [orgs, integrations, markupData, commissionData, users] = await Promise.all([
-        supabase.from('organizations').select('id, status'),
-        supabase.from('deriv_integrations').select('id, connection_status'),
-        supabase.from('markup_records').select('total_markup'),
-        supabase.from('commission_records').select('amount'),
-        supabase.from('profiles').select('id'),
-      ]);
-
-      const orgList = orgs.data || [];
-      const intList = integrations.data || [];
-
-      setStats({
-        totalOrganizations: orgList.length,
-        activeOrganizations: orgList.filter(o => o.status === 'active').length,
-        connectedApplications: intList.filter(i => i.connection_status === 'connected').length,
-        totalMarkup: (markupData.data || []).reduce((sum, r) => sum + Number(r.total_markup), 0),
-        totalCommissions: (commissionData.data || []).reduce((sum, r) => sum + Number(r.amount), 0),
-        activeUsers: users.data?.length || 0,
-        failedIntegrations: intList.filter(i => i.connection_status === 'error').length,
-      });
+      const data = await res.json();
+      setStats(data);
     } catch (error) {
       console.error('Failed to load admin data:', error);
     } finally {

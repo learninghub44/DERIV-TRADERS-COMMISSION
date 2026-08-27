@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { TrendingUp, RefreshCw, Download } from 'lucide-react';
 
@@ -18,8 +17,6 @@ export default function CommissionsPage() {
   });
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
-  const supabase = createClient();
-
   useEffect(() => {
     loadCommissionData();
   }, []);
@@ -27,23 +24,9 @@ export default function CommissionsPage() {
   const loadCommissionData = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: member } = await supabase
-        .from('organization_members')
-        .select('organization_id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .single();
-
-      if (!member) return;
-
-      const { data } = await supabase
-        .from('commission_records')
-        .select('*')
-        .eq('organization_id', member.organization_id)
-        .order('record_date', { ascending: false });
+      const res = await fetch('/api/commissions');
+      if (!res.ok) return;
+      const { records: data } = await res.json();
 
       setRecords(data || []);
 
@@ -54,12 +37,12 @@ export default function CommissionsPage() {
       const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
 
       setStats({
-        total: (data || []).reduce((sum, r) => sum + Number(r.amount), 0),
-        today: (data || []).filter(r => r.record_date === today).reduce((sum, r) => sum + Number(r.amount), 0),
-        thisMonth: (data || []).filter(r => r.record_date >= monthStart).reduce((sum, r) => sum + Number(r.amount), 0),
-        lastMonth: (data || []).filter(r => r.record_date >= lastMonthStart && r.record_date <= lastMonthEnd).reduce((sum, r) => sum + Number(r.amount), 0),
-        pending: (data || []).filter(r => r.status === 'pending').reduce((sum, r) => sum + Number(r.amount), 0),
-        paid: (data || []).filter(r => r.status === 'paid').reduce((sum, r) => sum + Number(r.amount), 0),
+        total: (data || []).reduce((sum: number, r: any) => sum + Number(r.amount), 0),
+        today: (data || []).filter((r: any) => r.record_date === today).reduce((sum: number, r: any) => sum + Number(r.amount), 0),
+        thisMonth: (data || []).filter((r: any) => r.record_date >= monthStart).reduce((sum: number, r: any) => sum + Number(r.amount), 0),
+        lastMonth: (data || []).filter((r: any) => r.record_date >= lastMonthStart && r.record_date <= lastMonthEnd).reduce((sum: number, r: any) => sum + Number(r.amount), 0),
+        pending: (data || []).filter((r: any) => r.status === 'pending').reduce((sum: number, r: any) => sum + Number(r.amount), 0),
+        paid: (data || []).filter((r: any) => r.status === 'paid').reduce((sum: number, r: any) => sum + Number(r.amount), 0),
       });
     } catch (error) {
       console.error('Failed to load commission data:', error);

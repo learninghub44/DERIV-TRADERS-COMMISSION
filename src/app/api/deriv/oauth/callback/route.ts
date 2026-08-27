@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { sql } from '@/lib/db';
+import { getOrgContext } from '@/lib/org';
+import { getCurrentUser } from '@/lib/auth';
 import { exchangeCodeForToken } from '@/services/deriv/auth';
 import { encrypt } from '@/lib/encryption';
 
@@ -62,27 +64,18 @@ export async function GET(request: NextRequest) {
       process.env.NEXT_PUBLIC_DERIV_REDIRECT_URI!
     );
 
-    // Get authenticated user
-    const supabase = await createServerSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.redirect(new URL('/login', request.url));
-    }
-
-    // Get user's organization
-    const { data: member } = await supabase
-      .from('organization_members')
-      .select('organization_id')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .single();
-
-    if (!member) {
+    // Get authenticated user + org
+    const ctx = await getOrgContext();
+    if (!ctx) {
+      const user = await getCurrentUser();
+      if (!user) {
+        return NextResponse.redirect(new URL('/login', request.url));
+      }
       return NextResponse.redirect(
         new URL('/settings/applications?error=no_organization', request.url)
       );
     }
+    const { user, orgId } = ctx;
 
     // NOTE: The legacy Deriv API app_get_details endpoint is not available via the new REST API.
     // App name and details must be configured manually or retrieved after connection
@@ -91,49 +84,54 @@ export async function GET(request: NextRequest) {
     const appStatus = 'active';
 
     // Store the integration (upsert to handle reconnections)
-    const { error: insertError } = await supabase
-      .from('deriv_integrations')
-      .upsert({
-        organization_id: member.organization_id,
-        deriv_app_id: process.env.NEXT_PUBLIC_DERIV_APP_ID!,
-        app_name: appName,
-        app_status: appStatus,
-        auth_method: 'oauth',
-        access_token: encrypt(tokenData.access_token),
-        refresh_token: tokenData.refresh_token ? encrypt(tokenData.refresh_token) : null,
-        token_expires_at: tokenData.expires_in
-          ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
-          : null,
-        scope: ['application_read'],
-        connection_status: 'connected',
-        markup_percentage: 0,
-      }, {
-        onConflict: 'organization_id,deriv_app_id',
-      });
-
-    if (insertError) {
+    try {
+      await sql`
+        INSERT INTO deriv_integrations (
+          organization_id, deriv_app_id, app_name, app_status, auth_method,
+          access_token, refresh_token, token_expires_at, scope,
+          connection_status, markup_percentage
+        )
+        VALUES (
+          ${orgId}, ${process.env.NEXT_PUBLIC_DERIV_APP_ID!}, ${appName}, ${appStatus}, 'oauth',
+          ${encrypt(tokenData.access_token)},
+          ${tokenData.refresh_token ? encrypt(tokenData.refresh_token) : null},
+          ${tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString() : null},
+          ${['application_read']},
+          'connected', 0
+        )
+        ON CONFLICT (organization_id, deriv_app_id)
+        DO UPDATE SET
+          app_name = EXCLUDED.app_name,
+          app_status = EXCLUDED.app_status,
+          auth_method = EXCLUDED.auth_method,
+          access_token = EXCLUDED.access_token,
+          refresh_token = EXCLUDED.refresh_token,
+          token_expires_at = EXCLUDED.token_expires_at,
+          connection_status = 'connected'
+      `;
+    } catch {
       // Sanitize error for logging - do not expose sensitive details
       throw new Error('Failed to store integration');
     }
 
     // Create success notification
-    await supabase.from('notifications').insert({
-      user_id: user.id,
-      organization_id: member.organization_id,
-      title: 'Deriv Application Connected',
-      message: 'Your Deriv application has been successfully connected. Markup data will sync automatically.',
-      type: 'success',
-    });
+    await sql`
+      INSERT INTO notifications (user_id, organization_id, title, message, type)
+      VALUES (
+        ${user.id}, ${orgId}, 'Deriv Application Connected',
+        'Your Deriv application has been successfully connected. Markup data will sync automatically.',
+        'success'
+      )
+    `;
 
     // Audit log (no sensitive data)
-    await supabase.from('audit_logs').insert({
-      actor_id: user.id,
-      actor_email: user.email,
-      organization_id: member.organization_id,
-      action: 'deriv_connected',
-      resource_type: 'deriv_integration',
-      details: { status: 'connected' },
-    });
+    await sql`
+      INSERT INTO audit_logs (actor_id, actor_email, organization_id, action, resource_type, details)
+      VALUES (
+        ${user.id}, ${user.email}, ${orgId}, 'deriv_connected', 'deriv_integration',
+        ${JSON.stringify({ status: 'connected' })}
+      )
+    `;
 
     // Clear OAuth cookies and redirect
     const response = NextResponse.redirect(

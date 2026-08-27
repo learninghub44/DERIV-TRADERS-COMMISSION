@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { formatDate } from '@/lib/utils';
 import { Building, RefreshCw, Search } from 'lucide-react';
 
@@ -9,8 +8,6 @@ export default function AdminOrganizationsPage() {
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const supabase = createClient();
-
   useEffect(() => {
     loadOrganizations();
   }, []);
@@ -18,11 +15,9 @@ export default function AdminOrganizationsPage() {
   const loadOrganizations = async () => {
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from('organizations')
-        .select('*')
-        .order('created_at', { ascending: false });
-
+      const res = await fetch('/api/admin/organizations');
+      if (!res.ok) return;
+      const { organizations: data } = await res.json();
       setOrganizations(data || []);
     } catch (error) {
       console.error('Failed to load organizations:', error);
@@ -33,10 +28,11 @@ export default function AdminOrganizationsPage() {
 
   const toggleStatus = async (orgId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
-    await supabase
-      .from('organizations')
-      .update({ status: newStatus })
-      .eq('id', orgId);
+    await fetch('/api/admin/organizations', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orgId, status: newStatus }),
+    });
     await loadOrganizations();
   };
 

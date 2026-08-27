@@ -1,15 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { formatDateTime } from '@/lib/utils';
 import { Shield, RefreshCw } from 'lucide-react';
 
 export default function AdminAuditLogsPage() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
-
   useEffect(() => {
     loadLogs();
   }, []);
@@ -17,12 +14,9 @@ export default function AdminAuditLogsPage() {
   const loadLogs = async () => {
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from('audit_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100);
-
+      const res = await fetch('/api/admin/audit-logs');
+      if (!res.ok) return;
+      const { logs: data } = await res.json();
       setLogs(data || []);
     } catch (error) {
       console.error('Failed to load audit logs:', error);

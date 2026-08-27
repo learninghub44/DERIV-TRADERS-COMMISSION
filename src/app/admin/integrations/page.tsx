@@ -1,15 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { formatRelativeTime } from '@/lib/utils';
 import { Activity, RefreshCw } from 'lucide-react';
 
 export default function AdminIntegrationsPage() {
   const [integrations, setIntegrations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
-
   useEffect(() => {
     loadIntegrations();
   }, []);
@@ -17,11 +14,9 @@ export default function AdminIntegrationsPage() {
   const loadIntegrations = async () => {
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from('deriv_integrations')
-        .select('*, organizations(name)')
-        .order('created_at', { ascending: false });
-
+      const res = await fetch('/api/admin/integrations');
+      if (!res.ok) return;
+      const { integrations: data } = await res.json();
       setIntegrations(data || []);
     } catch (error) {
       console.error('Failed to load integrations:', error);
@@ -60,7 +55,7 @@ export default function AdminIntegrationsPage() {
           <tbody>
             {integrations.map((int) => (
               <tr key={int.id} className="border-b border-surface-800/50 hover:bg-surface-800/30">
-                <td className="p-4 text-sm text-white">{int.organizations?.name || '-'}</td>
+                <td className="p-4 text-sm text-white">{int.organization_name || '-'}</td>
                 <td className="p-4 text-sm text-surface-300 font-mono">{int.deriv_app_id}</td>
                 <td className="p-4 text-sm text-surface-300">{int.app_name || '-'}</td>
                 <td className="p-4">

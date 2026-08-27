@@ -1,5 +1,5 @@
-import { createServiceSupabaseClient } from '@/lib/supabase/server';
-import type { MarkupRecord, CommissionRecord, Client, TradingActivity, SyncJob } from '@/types';
+import { sql } from '@/lib/db';
+import type { MarkupRecord } from '@/types';
 
 export async function syncMarkupRecords(
   organizationId: string,
@@ -9,35 +9,22 @@ export async function syncMarkupRecords(
   dateFrom: string,
   dateTo: string
 ): Promise<{ synced: number; error?: string }> {
-  const supabase = await createServiceSupabaseClient();
-
   try {
     // Create sync job
-    const { data: syncJob, error: syncJobError } = await supabase
-      .from('sync_jobs')
-      .insert({
-        organization_id: organizationId,
-        integration_id: integrationId,
-        status: 'running',
-        sync_type: 'markup',
-        started_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (syncJobError) throw syncJobError;
+    const syncJobRows = await sql`
+      INSERT INTO sync_jobs (organization_id, integration_id, status, sync_type, started_at)
+      VALUES (${organizationId}, ${integrationId}, 'running', 'markup', NOW())
+      RETURNING id
+    `;
+    const syncJobId = syncJobRows[0].id;
 
     // Update integration status
-    await supabase
-      .from('deriv_integrations')
-      .update({ connection_status: 'syncing' })
-      .eq('id', integrationId);
+    await sql`
+      UPDATE deriv_integrations SET connection_status = 'syncing' WHERE id = ${integrationId}
+    `;
 
     // Fetch from Deriv API
-    const params = new URLSearchParams({
-      date_from: dateFrom,
-      date_to: dateTo,
-    });
+    const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
 
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_DERIV_API_BASE_URL}/applications/v1/markup-statistics?${params.toString()}`,
@@ -59,58 +46,53 @@ export async function syncMarkupRecords(
     // Process and store records (upsert to prevent duplicates)
     if (stats.total_markup_per_app) {
       for (const appStat of stats.total_markup_per_app) {
-        const { error } = await supabase
-          .from('markup_records')
-          .upsert({
-            organization_id: organizationId,
-            integration_id: integrationId,
-            record_date: dateFrom,
-            total_markup: parseFloat(appStat.markup || '0'),
-            contract_count: parseInt(appStat.contract_count || '0', 10),
-            total_volume: 0,
-            currency: 'USD',
-            source: 'deriv',
-          }, {
-            onConflict: 'integration_id,record_date',
-          });
+        const totalMarkup = parseFloat(appStat.markup || '0');
+        const contractCount = parseInt(appStat.contract_count || '0', 10);
 
-        if (!error) synced++;
+        await sql`
+          INSERT INTO markup_records (
+            organization_id, integration_id, record_date, total_markup,
+            contract_count, total_volume, currency, source
+          )
+          VALUES (
+            ${organizationId}, ${integrationId}, ${dateFrom}, ${totalMarkup},
+            ${contractCount}, 0, 'USD', 'deriv'
+          )
+          ON CONFLICT (integration_id, record_date)
+          DO UPDATE SET
+            total_markup = EXCLUDED.total_markup,
+            contract_count = EXCLUDED.contract_count
+        `;
+        synced++;
       }
     }
 
     // Update sync job
-    await supabase
-      .from('sync_jobs')
-      .update({
-        status: 'completed',
-        records_synced: synced,
-        completed_at: new Date().toISOString(),
-      })
-      .eq('id', syncJob.id);
+    await sql`
+      UPDATE sync_jobs
+      SET status = 'completed', records_synced = ${synced}, completed_at = NOW()
+      WHERE id = ${syncJobId}
+    `;
 
     // Update integration
-    await supabase
-      .from('deriv_integrations')
-      .update({
-        connection_status: 'connected',
-        last_sync_at: new Date().toISOString(),
-        last_successful_sync_at: new Date().toISOString(),
-        sync_error: null,
-      })
-      .eq('id', integrationId);
+    await sql`
+      UPDATE deriv_integrations
+      SET connection_status = 'connected',
+          last_sync_at = NOW(),
+          last_successful_sync_at = NOW(),
+          sync_error = NULL
+      WHERE id = ${integrationId}
+    `;
 
     return { synced };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-    // Update integration with error
-    await supabase
-      .from('deriv_integrations')
-      .update({
-        connection_status: 'error',
-        sync_error: errorMessage,
-      })
-      .eq('id', integrationId);
+    await sql`
+      UPDATE deriv_integrations
+      SET connection_status = 'error', sync_error = ${errorMessage}
+      WHERE id = ${integrationId}
+    `;
 
     return { synced: 0, error: errorMessage };
   }
@@ -121,20 +103,33 @@ export async function getMarkupRecords(
   dateFrom?: string,
   dateTo?: string
 ): Promise<MarkupRecord[]> {
-  const supabase = await createServiceSupabaseClient();
-
-  let query = supabase
-    .from('markup_records')
-    .select('*')
-    .eq('organization_id', organizationId)
-    .order('record_date', { ascending: false });
-
-  if (dateFrom) query = query.gte('record_date', dateFrom);
-  if (dateTo) query = query.lte('record_date', dateTo);
-
-  const { data, error } = await query;
-  if (error) throw error;
-  return data || [];
+  if (dateFrom && dateTo) {
+    return (await sql`
+      SELECT * FROM markup_records
+      WHERE organization_id = ${organizationId}
+        AND record_date >= ${dateFrom} AND record_date <= ${dateTo}
+      ORDER BY record_date DESC
+    `) as MarkupRecord[];
+  }
+  if (dateFrom) {
+    return (await sql`
+      SELECT * FROM markup_records
+      WHERE organization_id = ${organizationId} AND record_date >= ${dateFrom}
+      ORDER BY record_date DESC
+    `) as MarkupRecord[];
+  }
+  if (dateTo) {
+    return (await sql`
+      SELECT * FROM markup_records
+      WHERE organization_id = ${organizationId} AND record_date <= ${dateTo}
+      ORDER BY record_date DESC
+    `) as MarkupRecord[];
+  }
+  return (await sql`
+    SELECT * FROM markup_records
+    WHERE organization_id = ${organizationId}
+    ORDER BY record_date DESC
+  `) as MarkupRecord[];
 }
 
 export async function getTotalMarkup(

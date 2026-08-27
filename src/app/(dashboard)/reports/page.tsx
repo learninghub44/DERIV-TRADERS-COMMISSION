@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { formatDate } from '@/lib/utils';
 import { FileText, RefreshCw, Download, Plus } from 'lucide-react';
 
@@ -11,8 +10,6 @@ export default function ReportsPage() {
   const [generating, setGenerating] = useState(false);
   const [type, setType] = useState('markup');
   const [format, setFormat] = useState('csv');
-  const supabase = createClient();
-
   useEffect(() => {
     loadReports();
   }, []);
@@ -20,24 +17,9 @@ export default function ReportsPage() {
   const loadReports = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: member } = await supabase
-        .from('organization_members')
-        .select('organization_id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .single();
-
-      if (!member) return;
-
-      const { data } = await supabase
-        .from('reports')
-        .select('*')
-        .eq('organization_id', member.organization_id)
-        .order('created_at', { ascending: false });
-
+      const res = await fetch('/api/reports');
+      if (!res.ok) return;
+      const { reports: data } = await res.json();
       setReports(data || []);
     } catch (error) {
       console.error('Failed to load reports:', error);
@@ -49,30 +31,12 @@ export default function ReportsPage() {
   const generateReport = async () => {
     setGenerating(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: member } = await supabase
-        .from('organization_members')
-        .select('organization_id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .single();
-
-      if (!member) return;
-
-      const now = new Date();
-      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-      await supabase.from('reports').insert({
-        organization_id: member.organization_id,
-        user_id: user.id,
-        report_type: type,
-        format,
-        date_from: thirtyDaysAgo.toISOString().split('T')[0],
-        date_to: now.toISOString().split('T')[0],
-        status: 'completed',
+      const res = await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, format }),
       });
+      if (!res.ok) return;
 
       await loadReports();
     } catch (error) {
@@ -83,51 +47,29 @@ export default function ReportsPage() {
   };
 
   const exportData = async (report: any) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data: member } = await supabase
-      .from('organization_members')
-      .select('organization_id')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .single();
-
-    if (!member) return;
-
     let data: any[] = [];
     let headers: string[] = [];
 
     if (report.report_type === 'markup') {
-      const { data: records } = await supabase
-        .from('markup_records')
-        .select('*')
-        .eq('organization_id', member.organization_id);
+      const res = await fetch('/api/reports?export=markup');
+      const { data: records } = await res.json();
       data = records || [];
       headers = ['Date', 'Markup', 'Contracts', 'Volume', 'Currency', 'Source'];
     } else if (report.report_type === 'commission') {
-      const { data: records } = await supabase
-        .from('commission_records')
-        .select('*')
-        .eq('organization_id', member.organization_id);
+      const res = await fetch('/api/reports?export=commission');
+      const { data: records } = await res.json();
       data = records || [];
       headers = ['Date', 'Type', 'Amount', 'Currency', 'Status', 'Description'];
     } else if (report.report_type === 'earnings') {
-      const { data: markupData } = await supabase
-        .from('markup_records')
-        .select('total_markup, record_date')
-        .eq('organization_id', member.organization_id);
-      const { data: commissionData } = await supabase
-        .from('commission_records')
-        .select('amount, record_date')
-        .eq('organization_id', member.organization_id);
+      const res = await fetch('/api/reports?export=earnings');
+      const { markupData, commissionData } = await res.json();
       headers = ['Date', 'Markup', 'Commissions', 'Total'];
       const dayMap: Record<string, { markup: number; commissions: number }> = {};
-      (markupData || []).forEach(r => {
+      (markupData || []).forEach((r: any) => {
         if (!dayMap[r.record_date]) dayMap[r.record_date] = { markup: 0, commissions: 0 };
         dayMap[r.record_date].markup += Number(r.total_markup);
       });
-      (commissionData || []).forEach(r => {
+      (commissionData || []).forEach((r: any) => {
         if (!dayMap[r.record_date]) dayMap[r.record_date] = { markup: 0, commissions: 0 };
         dayMap[r.record_date].commissions += Number(r.amount);
       });
@@ -138,17 +80,13 @@ export default function ReportsPage() {
         total: d.markup + d.commissions,
       }));
     } else if (report.report_type === 'clients') {
-      const { data: records } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('organization_id', member.organization_id);
+      const res = await fetch('/api/reports?export=clients');
+      const { data: records } = await res.json();
       data = records || [];
       headers = ['Client ID', 'Registered', 'Status', 'Contracts', 'Volume', 'Markup', 'Commission'];
     } else if (report.report_type === 'trading') {
-      const { data: records } = await supabase
-        .from('trading_activity')
-        .select('*')
-        .eq('organization_id', member.organization_id);
+      const res = await fetch('/api/reports?export=trading');
+      const { data: records } = await res.json();
       data = records || [];
       headers = ['Contract ID', 'Type', 'Underlying', 'Amount', 'Result', 'Payout', 'Markup', 'Time'];
     }

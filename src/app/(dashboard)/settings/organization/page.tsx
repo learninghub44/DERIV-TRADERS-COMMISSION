@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { formatDate } from '@/lib/utils';
 import { Building, RefreshCw, Save, Users, Shield } from 'lucide-react';
 
@@ -12,8 +11,6 @@ export default function OrganizationPage() {
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState('');
   const [website, setWebsite] = useState('');
-  const supabase = createClient();
-
   useEffect(() => {
     loadOrganization();
   }, []);
@@ -21,33 +18,13 @@ export default function OrganizationPage() {
   const loadOrganization = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: member } = await supabase
-        .from('organization_members')
-        .select('organization_id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .single();
-
-      if (!member) return;
-
-      const { data: orgData } = await supabase
-        .from('organizations')
-        .select('*')
-        .eq('id', member.organization_id)
-        .single();
+      const res = await fetch('/api/settings/organization');
+      if (!res.ok) return;
+      const { org: orgData, members: membersData } = await res.json();
 
       setOrg(orgData);
       setName(orgData?.name || '');
       setWebsite(orgData?.website || '');
-
-      const { data: membersData } = await supabase
-        .from('organization_members')
-        .select('*, profiles:user_id(email, full_name)')
-        .eq('organization_id', member.organization_id);
-
       setMembers(membersData || []);
     } catch (error) {
       console.error('Failed to load organization:', error);
@@ -60,10 +37,11 @@ export default function OrganizationPage() {
     setSaving(true);
     try {
       if (!org) return;
-      await supabase
-        .from('organizations')
-        .update({ name, website })
-        .eq('id', org.id);
+      await fetch('/api/settings/organization', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, website }),
+      });
     } catch (error) {
       console.error('Failed to save:', error);
     } finally {
@@ -143,8 +121,8 @@ export default function OrganizationPage() {
           {members.map((member) => (
             <div key={member.id} className="flex items-center justify-between p-3 rounded-lg bg-surface-800/50">
               <div>
-                <p className="text-sm font-medium text-white">{member.profiles?.full_name || member.profiles?.email}</p>
-                <p className="text-xs text-surface-400">{member.profiles?.email}</p>
+                <p className="text-sm font-medium text-white">{member.user_full_name || member.user_email}</p>
+                <p className="text-xs text-surface-400">{member.user_email}</p>
               </div>
               <span className="text-xs px-2 py-1 rounded bg-surface-800 text-surface-300 capitalize">
                 {member.role?.replace('_', ' ')}

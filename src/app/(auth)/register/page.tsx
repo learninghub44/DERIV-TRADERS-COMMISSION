@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { slugify } from '@/lib/utils';
 import { Zap, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function RegisterPage() {
@@ -18,8 +16,6 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const router = useRouter();
-
-  const supabase = createClient();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,82 +34,20 @@ export default function RegisterPage() {
       return;
     }
 
-    // Sign up
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-        },
-      },
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fullName, email, password, orgName }),
     });
 
-    if (authError) {
-      setError(authError.message);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.error || 'Unable to create your account.');
       setLoading(false);
       return;
     }
 
-    if (authData.user) {
-      // Create profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: authData.user.id,
-          email,
-          full_name: fullName,
-          role: 'org_owner',
-        });
-
-      if (profileError) {
-        console.error('Profile creation error:', profileError);
-      }
-
-      // Create organization
-      const slug = slugify(orgName || fullName);
-      const { data: org, error: orgError } = await supabase
-        .from('organizations')
-        .insert({
-          name: orgName || `${fullName}'s Organization`,
-          slug,
-          owner_id: authData.user.id,
-          subscription_plan: 'starter',
-          max_applications: 1,
-          max_users: 3,
-        })
-        .select()
-        .single();
-
-      if (!orgError && org) {
-        // Add owner as member
-        await supabase
-          .from('organization_members')
-          .insert({
-            organization_id: org.id,
-            user_id: authData.user.id,
-            role: 'org_owner',
-            status: 'active',
-            accepted_at: new Date().toISOString(),
-          });
-
-        // Create default subscription
-        await supabase
-          .from('subscriptions')
-          .insert({
-            organization_id: org.id,
-            plan: 'starter',
-            status: 'active',
-            max_applications: 1,
-            max_users: 3,
-            max_data_history_days: 30,
-            sync_frequency_hours: 24,
-          });
-      }
-
-      setSuccess(true);
-    }
-
+    setSuccess(true);
     setLoading(false);
   };
 

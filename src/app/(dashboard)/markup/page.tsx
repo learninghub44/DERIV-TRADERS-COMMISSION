@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { BarChart3, RefreshCw, ExternalLink } from 'lucide-react';
 
@@ -30,8 +29,6 @@ export default function MarkupPage() {
     lastMonthMarkup: 0,
     contractCount: 0,
   });
-  const supabase = createClient();
-
   useEffect(() => {
     loadMarkupData();
   }, []);
@@ -39,35 +36,11 @@ export default function MarkupPage() {
   const loadMarkupData = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const res = await fetch('/api/markup');
+      if (!res.ok) return;
+      const { markupPct, records: data } = await res.json();
 
-      const { data: member } = await supabase
-        .from('organization_members')
-        .select('organization_id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .single();
-
-      if (!member) return;
-
-      // Get markup percentage from integration
-      const { data: integration } = await supabase
-        .from('deriv_integrations')
-        .select('markup_percentage')
-        .eq('organization_id', member.organization_id)
-        .eq('connection_status', 'connected')
-        .single();
-
-      setMarkupPct(Number(integration?.markup_percentage || 0));
-
-      // Get all markup records for this organization
-      const { data } = await supabase
-        .from('markup_records')
-        .select('total_markup, contract_count, record_date')
-        .eq('organization_id', member.organization_id)
-        .order('record_date', { ascending: false });
-
+      setMarkupPct(Number(markupPct || 0));
       setRecords(data || []);
 
       // Calculate stats from actual records
@@ -81,12 +54,12 @@ export default function MarkupPage() {
       const allRecords = data || [];
 
       setStats({
-        totalMarkup: allRecords.reduce((sum, r) => sum + parseFloat(String(r.total_markup || 0)), 0),
-        todayMarkup: allRecords.filter(r => r.record_date === today).reduce((sum, r) => sum + parseFloat(String(r.total_markup || 0)), 0),
-        weekMarkup: allRecords.filter(r => r.record_date >= weekAgo).reduce((sum, r) => sum + parseFloat(String(r.total_markup || 0)), 0),
-        monthMarkup: allRecords.filter(r => r.record_date >= monthStart).reduce((sum, r) => sum + parseFloat(String(r.total_markup || 0)), 0),
-        lastMonthMarkup: allRecords.filter(r => r.record_date >= lastMonthStart && r.record_date <= lastMonthEnd).reduce((sum, r) => sum + parseFloat(String(r.total_markup || 0)), 0),
-        contractCount: allRecords.reduce((sum, r) => sum + parseInt(String(r.contract_count || 0), 10), 0),
+        totalMarkup: allRecords.reduce((sum: number, r: any) => sum + parseFloat(String(r.total_markup || 0)), 0),
+        todayMarkup: allRecords.filter((r: any) => r.record_date === today).reduce((sum: number, r: any) => sum + parseFloat(String(r.total_markup || 0)), 0),
+        weekMarkup: allRecords.filter((r: any) => r.record_date >= weekAgo).reduce((sum: number, r: any) => sum + parseFloat(String(r.total_markup || 0)), 0),
+        monthMarkup: allRecords.filter((r: any) => r.record_date >= monthStart).reduce((sum: number, r: any) => sum + parseFloat(String(r.total_markup || 0)), 0),
+        lastMonthMarkup: allRecords.filter((r: any) => r.record_date >= lastMonthStart && r.record_date <= lastMonthEnd).reduce((sum: number, r: any) => sum + parseFloat(String(r.total_markup || 0)), 0),
+        contractCount: allRecords.reduce((sum: number, r: any) => sum + parseInt(String(r.contract_count || 0), 10), 0),
       });
     } catch (error) {
       // Silent fail

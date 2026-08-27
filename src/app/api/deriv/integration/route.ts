@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { sql } from '@/lib/db';
+import { getOrgContext } from '@/lib/org';
 
 /**
  * DERIV TECH - Current Integration Status
@@ -9,33 +10,20 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
  */
 export async function GET() {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
+    const ctx = await getOrgContext();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: member } = await supabase
-      .from('organization_members')
-      .select('organization_id')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .single();
-
-    if (!member) {
-      return NextResponse.json({ integration: null });
-    }
-
-    const { data: integration } = await supabase
-      .from('deriv_integrations')
-      .select(
-        'id, deriv_app_id, app_name, connection_status, auth_method, last_sync_at, last_successful_sync_at, sync_error, markup_percentage, created_at'
-      )
-      .eq('organization_id', member.organization_id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const rows = await sql`
+      SELECT id, deriv_app_id, app_name, connection_status, auth_method,
+             last_sync_at, last_successful_sync_at, sync_error, markup_percentage, created_at
+      FROM deriv_integrations
+      WHERE organization_id = ${ctx.orgId}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    const integration = rows[0];
 
     if (!integration) {
       return NextResponse.json({ integration: null });

@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { formatCurrency, formatNumber, formatRelativeTime } from '@/lib/utils';
 import {
   DollarSign,
@@ -42,8 +41,6 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const supabase = createClient();
-
   useEffect(() => {
     loadDashboardData();
   }, []);
@@ -51,99 +48,10 @@ export default function DashboardPage() {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: member } = await supabase
-        .from('organization_members')
-        .select('organization_id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .single();
-
-      if (!member) return;
-
-      const orgId = member.organization_id;
-
-      // Get integrations
-      const { data: integrations } = await supabase
-        .from('deriv_integrations')
-        .select('*')
-        .eq('organization_id', orgId);
-
-      const isConnected = integrations?.some(i => i.connection_status === 'connected') || false;
-      const lastSync = integrations?.reduce((latest, i) => {
-        if (!latest || (i.last_successful_sync_at && i.last_successful_sync_at > latest)) {
-          return i.last_successful_sync_at;
-        }
-        return latest;
-      }, null as string | null);
-
-      // Get markup records - all monetary values are NUMERIC in the database
-      const { data: markupRecords } = await supabase
-        .from('markup_records')
-        .select('total_markup, record_date')
-        .eq('organization_id', orgId)
-        .order('record_date', { ascending: false });
-
-      // Calculate markup using precise addition
-      const totalMarkup = (markupRecords || []).reduce(
-        (sum, r) => sum + parseFloat(String(r.total_markup || 0)),
-        0
-      );
-
-      // Get commission records
-      const { data: commissionRecords } = await supabase
-        .from('commission_records')
-        .select('amount, record_date')
-        .eq('organization_id', orgId)
-        .order('record_date', { ascending: false });
-
-      const totalCommissions = (commissionRecords || []).reduce(
-        (sum, r) => sum + parseFloat(String(r.amount || 0)),
-        0
-      );
-
-      // Get active client count
-      const { count: clientCount } = await supabase
-        .from('clients')
-        .select('*', { count: 'exact', head: true })
-        .eq('organization_id', orgId);
-
-      // Get recent trading activity
-      const { data: recentActivity } = await supabase
-        .from('trading_activity')
-        .select('id, contract_type, external_contract_id, amount, result, contract_time')
-        .eq('organization_id', orgId)
-        .order('contract_time', { ascending: false })
-        .limit(5);
-
-      // Get top clients by markup generated
-      const { data: topClients } = await supabase
-        .from('clients')
-        .select('id, external_client_id, total_contracts, generated_markup')
-        .eq('organization_id', orgId)
-        .order('generated_markup', { ascending: false })
-        .limit(5);
-
-      // Calculate today's markup from actual records
-      const today = new Date().toISOString().split('T')[0];
-      const todayMarkup = (markupRecords || [])
-        .filter(r => r.record_date === today)
-        .reduce((sum, r) => sum + parseFloat(String(r.total_markup || 0)), 0);
-
-      setData({
-        totalEarnings: totalMarkup + totalCommissions,
-        totalMarkup,
-        totalCommissions,
-        activeClients: clientCount || 0,
-        totalContracts: recentActivity?.length || 0,
-        todayMarkup,
-        lastSyncAt: lastSync,
-        connectionStatus: isConnected ? 'connected' : 'disconnected',
-        recentActivity: recentActivity || [],
-        topClients: topClients || [],
-      });
+      const res = await fetch('/api/dashboard');
+      if (!res.ok) return;
+      const data: DashboardData = await res.json();
+      setData(data);
     } catch (error) {
       // Do not log sensitive error details
     } finally {

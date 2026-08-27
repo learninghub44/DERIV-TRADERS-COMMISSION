@@ -37,8 +37,8 @@ export default function AdminSettingsPage() {
             <span className="text-sm text-green-400 font-mono">Configured</span>
           </div>
           <div className="flex justify-between items-center p-3 rounded-lg bg-surface-800/50">
-            <span className="text-sm text-surface-400">RLS Policies</span>
-            <span className="text-sm text-green-400 font-mono">Active</span>
+            <span className="text-sm text-surface-400">Tenant Isolation</span>
+            <span className="text-sm text-green-400 font-mono">App-layer (org membership checks)</span>
           </div>
           <div className="flex justify-between items-center p-3 rounded-lg bg-surface-800/50">
             <span className="text-sm text-surface-400">Migrations</span>
@@ -114,7 +114,7 @@ export default function AdminSettingsPage() {
             <ul className="text-surface-400 space-y-1">
               <li>• All customer Deriv credentials are encrypted at rest</li>
               <li>• Database credentials never leave the server</li>
-              <li>• Customer data is isolated via RLS policies</li>
+              <li>• Customer data is isolated via org-membership checks in every API route</li>
               <li>• Never expose DATABASE_URL or ENCRYPTION_KEY</li>
               <li>• Customer-specific credentials are loaded per-organization</li>
             </ul>
