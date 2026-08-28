@@ -43,7 +43,7 @@ Deriv API (OAuth 2.0 + PKCE, or manual API token, per customer)
 ## Step 2: Create Resend Account
 
 1. Go to https://resend.com and sign up/login
-2. Verify a sending domain (or use their shared `onboarding@resend.dev` sender for testing)
+2. Verify a sending domain (already done: `derivtech.christech.co.ke`)
 3. Create an API key
 4. Save as `RESEND_API_KEY`
 
@@ -73,7 +73,7 @@ AUTH_SECRET=your-random-64-char-secret-here
 
 # Email (Resend)
 RESEND_API_KEY=re_your_resend_api_key
-EMAIL_FROM=DERIV TECH <noreply@derivtech.example.com>
+EMAIL_FROM=DERIV TECH <noreply@derivtech.christech.co.ke>
 
 # Deriv Platform Credentials
 NEXT_PUBLIC_DERIV_APP_ID=your_deriv_app_id

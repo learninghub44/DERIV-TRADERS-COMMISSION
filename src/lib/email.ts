@@ -18,7 +18,7 @@ function getAppUrl(): string {
 }
 
 function getFromAddress(): string {
-  return process.env.EMAIL_FROM || 'DERIV TECH <onboarding@resend.dev>';
+  return process.env.EMAIL_FROM || 'DERIV TECH <noreply@derivtech.christech.co.ke>';
 }
 
 async function sendEmail(to: string, subject: string, html: string, fallbackLabel: string, fallbackUrl: string) {
