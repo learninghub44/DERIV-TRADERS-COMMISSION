@@ -37,9 +37,11 @@ interface DerivIntegration {
  * - Create a database
  * - Configure Cloudflare
  * - Edit environment variables
- * - Understand API configuration
  *
- * They simply click "Connect Deriv" and authorize through the official Deriv flow.
+ * They DO need to tell us the App ID of their own Deriv application
+ * (from developers.deriv.com) - markup-statistics is scoped per app_id,
+ * and DERIV TECH's own OAuth login app is a separate thing from that.
+ * Either connection method (OAuth login or a pasted API token) needs it.
  */
 export default function DerivIntegrationPage() {
   const searchParams = useSearchParams();
@@ -47,6 +49,7 @@ export default function DerivIntegrationPage() {
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [oauthAppId, setOauthAppId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showTokenForm, setShowTokenForm] = useState(false);
@@ -94,22 +97,30 @@ export default function DerivIntegrationPage() {
   }
 
   async function handleConnect() {
+    if (!oauthAppId.trim()) {
+      setError('Enter the App ID of your own Deriv application first (from developers.deriv.com).');
+      return;
+    }
+
     setConnecting(true);
     setError(null);
 
     try {
       const response = await fetch('/api/deriv/oauth/authorize', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appId: oauthAppId.trim() }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to initiate connection');
+        throw new Error(data.error || 'Failed to initiate connection');
       }
 
-      const { authorizationUrl } = await response.json();
-      window.location.href = authorizationUrl;
+      window.location.href = data.authorizationUrl;
     } catch (err) {
-      setError('Failed to initiate connection. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to initiate connection. Please try again.');
       setConnecting(false);
     }
   }
@@ -273,6 +284,23 @@ export default function DerivIntegrationPage() {
           <div className="flex items-center gap-2">
             {!integration ? (
               <div className="flex flex-col items-end gap-2">
+                <div className="w-full max-w-xs">
+                  <label htmlFor="oauthAppId" className="block text-xs font-medium text-surface-300 mb-1">
+                    Your Deriv App ID
+                  </label>
+                  <input
+                    id="oauthAppId"
+                    type="text"
+                    inputMode="numeric"
+                    value={oauthAppId}
+                    onChange={(e) => setOauthAppId(e.target.value)}
+                    placeholder="12345"
+                    className="w-full px-3 py-1.5 rounded-lg bg-surface-800 border border-surface-700 text-white text-sm placeholder:text-surface-500 focus:outline-none focus:border-brand-500"
+                  />
+                  <p className="text-xs text-surface-500 mt-1">
+                    From your own app at developers.deriv.com - the one that earns your markup, not a login you're making up.
+                  </p>
+                </div>
                 <button
                   onClick={handleConnect}
                   disabled={connecting}

@@ -56,6 +56,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // The customer's OWN Deriv app_id (the app that actually earns
+    // markup) - set by /api/deriv/oauth/authorize before redirecting to
+    // Deriv. This is NOT the same as DERIV TECH's own platform app_id
+    // used as the OAuth client_id below.
+    const targetAppId = request.cookies.get('deriv_target_app_id')?.value;
+    if (!targetAppId) {
+      return NextResponse.redirect(
+        new URL('/settings/applications?error=missing_verifier', request.url)
+      );
+    }
+
     // Exchange code for access token (server-side only)
     const tokenData = await exchangeCodeForToken(
       code,
@@ -92,7 +103,7 @@ export async function GET(request: NextRequest) {
           connection_status, markup_percentage
         )
         VALUES (
-          ${orgId}, ${process.env.NEXT_PUBLIC_DERIV_APP_ID!}, ${appName}, ${appStatus}, 'oauth',
+          ${orgId}, ${targetAppId}, ${appName}, ${appStatus}, 'oauth',
           ${encrypt(tokenData.access_token)},
           ${tokenData.refresh_token ? encrypt(tokenData.refresh_token) : null},
           ${tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString() : null},
@@ -139,6 +150,7 @@ export async function GET(request: NextRequest) {
     );
     response.cookies.delete('deriv_code_verifier');
     response.cookies.delete('deriv_oauth_state');
+    response.cookies.delete('deriv_target_app_id');
 
     return response;
   } catch (error) {
