@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { sql } from '@/lib/db';
 import { hashPassword } from '@/lib/auth';
+import { sendPasswordResetEmail } from '@/lib/email';
 
 // POST { email } -> request a reset link (always returns ok to avoid email enumeration)
 export async function POST(request: NextRequest) {
@@ -14,14 +15,18 @@ export async function POST(request: NextRequest) {
   const token = randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-  await sql`
+  const rows = await sql`
     UPDATE users
     SET password_reset_token = ${token}, password_reset_expires_at = ${expiresAt.toISOString()}
     WHERE email = ${normalizedEmail}
+    RETURNING id
   `;
 
-  // TODO: email the token via SMTP_* env vars. Deliberately not confirming
-  // whether the account exists in the response, to avoid email enumeration.
+  // Only send if a matching account exists, but always return the same
+  // response either way to avoid revealing whether the email is registered.
+  if (rows.length > 0) {
+    await sendPasswordResetEmail(normalizedEmail, token);
+  }
 
   return NextResponse.json({ ok: true });
 }

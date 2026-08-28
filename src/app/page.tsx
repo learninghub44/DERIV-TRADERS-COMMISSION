@@ -247,49 +247,29 @@ export default function LandingPage() {
       <section id="pricing" className="py-24 px-4 bg-surface-900/50">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Simple Pricing</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Free while in beta</h2>
             <p className="text-surface-400 max-w-2xl mx-auto">
-              Choose the plan that fits your business. Scale as you grow.
+              DERIV TECH is free to use during beta. Paid tiers with higher limits are coming later —
+              nothing changes on your account until you're notified in advance.
             </p>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { name: 'Starter', price: 'Free', apps: '1 app', users: '3 users', history: '30 days' },
-              { name: 'Professional', price: '$29', apps: '5 apps', users: '10 users', history: '90 days' },
-              { name: 'Business', price: '$79', apps: '20 apps', users: '25 users', history: '1 year' },
-              { name: 'Enterprise', price: 'Custom', apps: 'Unlimited', users: 'Unlimited', history: 'Unlimited' },
-            ].map((plan) => (
-              <div 
-                key={plan.name}
-                className={`p-6 rounded-xl border ${
-                  plan.name === 'Professional' 
-                    ? 'border-brand-600 bg-brand-600/5' 
-                    : 'border-surface-800 bg-surface-900/50'
-                }`}
+          <div className="max-w-sm mx-auto">
+            <div className="p-6 rounded-xl border border-brand-600 bg-brand-600/5">
+              <h3 className="text-lg font-semibold">Starter</h3>
+              <div className="text-3xl font-bold mt-2 mb-4">Free</div>
+              <ul className="space-y-2 text-sm text-surface-400">
+                <li>1 connected Deriv app</li>
+                <li>3 users</li>
+                <li>30 days data history</li>
+                <li>Basic analytics</li>
+              </ul>
+              <Link
+                href="/register"
+                className="block mt-6 py-2 text-center rounded-lg text-sm font-medium transition-colors bg-brand-600 hover:bg-brand-700 text-white"
               >
-                {plan.name === 'Professional' && (
-                  <div className="text-xs text-brand-500 font-medium mb-2">Most Popular</div>
-                )}
-                <h3 className="text-lg font-semibold">{plan.name}</h3>
-                <div className="text-3xl font-bold mt-2 mb-4">{plan.price}</div>
-                <ul className="space-y-2 text-sm text-surface-400">
-                  <li>{plan.apps}</li>
-                  <li>{plan.users}</li>
-                  <li>{plan.history} data history</li>
-                  <li>Basic analytics</li>
-                </ul>
-                <Link 
-                  href="/register"
-                  className={`block mt-6 py-2 text-center rounded-lg text-sm font-medium transition-colors ${
-                    plan.name === 'Professional'
-                      ? 'bg-brand-600 hover:bg-brand-700 text-white'
-                      : 'border border-surface-700 hover:border-surface-600 text-surface-300'
-                  }`}
-                >
-                  Get Started
-                </Link>
-              </div>
-            ))}
+                Get Started
+              </Link>
+            </div>
           </div>
         </div>
       </section>
@@ -316,7 +296,7 @@ export default function LandingPage() {
               },
               {
                 q: 'Is my data secure?',
-                a: 'Yes. We use encryption, row-level security, and strict multi-tenant isolation. Your data is never shared with other organizations.',
+                a: 'Yes. Deriv credentials are encrypted at rest, and every request is scoped to your organization with strict multi-tenant isolation. Your data is never shared with other organizations.',
               },
             ].map((faq) => (
               <div key={faq.q} className="p-6 rounded-xl border border-surface-800 bg-surface-900/50">

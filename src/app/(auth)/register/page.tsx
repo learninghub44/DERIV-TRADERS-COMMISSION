@@ -15,6 +15,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [emailSent, setEmailSent] = useState(true);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,6 +48,8 @@ export default function RegisterPage() {
       return;
     }
 
+    const body = await res.json().catch(() => ({}));
+    setEmailSent(body.emailSent !== false);
     setSuccess(true);
     setLoading(false);
   };
@@ -58,10 +61,17 @@ export default function RegisterPage() {
           <div className="w-16 h-16 rounded-full bg-success-500/10 flex items-center justify-center mx-auto mb-6">
             <Zap className="w-8 h-8 text-success-500" />
           </div>
-          <h1 className="text-2xl font-bold text-white mb-2">Check your email</h1>
-          <p className="text-surface-400 mb-6">
-            We sent a verification link to <strong className="text-white">{email}</strong>
-          </p>
+          <h1 className="text-2xl font-bold text-white mb-2">Account created</h1>
+          {emailSent ? (
+            <p className="text-surface-400 mb-6">
+              We sent a verification link to <strong className="text-white">{email}</strong>
+            </p>
+          ) : (
+            <p className="text-surface-400 mb-6">
+              Your account is ready. Email verification isn&apos;t configured on this
+              deployment yet, so you can sign in right away.
+            </p>
+          )}
           <Link
             href="/login"
             className="inline-block px-6 py-2.5 bg-brand-600 hover:bg-brand-700 rounded-lg font-medium text-white transition-colors"

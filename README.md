@@ -5,7 +5,9 @@ Multi-tenant SaaS analytics platform for Deriv API application operators. Custom
 ## Stack
 
 - **Next.js 15** (App Router) — deployed to **Cloudflare Workers** via `@opennextjs/cloudflare`
-- **Supabase** — auth + Postgres client (backed by a **Neon** Postgres database)
+- **Neon PostgreSQL** — accessed directly via `@neondatabase/serverless`, no Supabase involved
+- Custom auth: bcrypt password hashing + signed JWT session cookies (`src/lib/auth.ts`)
+- **Resend** — verification and password-reset emails (`src/lib/email.ts`)
 - **Tailwind CSS**
 - **Vitest** for unit tests
 
@@ -16,14 +18,17 @@ Customer Browser
         ↓
 Cloudflare Workers (Next.js via @opennextjs/cloudflare)
         ↓
-Supabase (Auth + Database connection to Neon PostgreSQL)
-        ↓
-Neon PostgreSQL (single database, Row Level Security for tenant isolation)
+Neon PostgreSQL (single database, tenant isolation enforced in the app layer)
         ↓
 Deriv API (per-customer credentials, see "Connecting a Deriv account" below)
 ```
 
-Every tenant-scoped table has Row Level Security enabled (see `supabase/migrations/`), so one organization's data is never visible to another at the database layer, independent of application-level checks.
+Tenant isolation is enforced in the application layer — every API route verifies the
+caller's session server-side and scopes queries to the caller's `organization_id`
+(see `src/lib/auth.ts` and `src/middleware.ts`). Neon has no `auth.uid()` /
+Supabase Auth integration, so there is no database-level Row Level Security here;
+an earlier draft of this project used Supabase for that, but the project moved to
+a plain Neon connection with custom auth, and Postgres RLS was never carried over.
 
 ## Connecting a Deriv account
 
@@ -40,7 +45,7 @@ All stored Deriv credentials (`deriv_integrations.access_token` / `refresh_token
 
 - Node.js 18+
 - A [Neon](https://neon.tech) Postgres database
-- A [Supabase](https://supabase.com) project (pointed at your Neon database)
+- A [Resend](https://resend.com) account (for verification/reset emails — optional for local dev, see below)
 - A [Deriv developer](https://developers.deriv.com) OAuth application (for the OAuth flow)
 
 ### Setup
@@ -51,7 +56,7 @@ cp .env.example .env.local
 # fill in .env.local with your own values - see below
 ```
 
-Run the database migrations (`supabase/migrations/*.sql`, in order) against your Neon database via the Neon SQL editor or `psql`.
+Run the database migrations (`neon/migrations/*.sql`, in order) against your Neon database via the Neon SQL editor or `psql`.
 
 ```bash
 npm run dev       # start the dev server
@@ -67,12 +72,12 @@ See `.env.example` for the full list with descriptions. At minimum for local dev
 
 | Variable | Purpose |
 |---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | Supabase auth + DB access |
 | `DATABASE_URL` | Direct Neon connection string |
+| `AUTH_SECRET` | JWT signing secret for session cookies (`src/lib/auth.ts`). Generate with `openssl rand -hex 32`. |
+| `RESEND_API_KEY` | Sends verification/reset emails. If unset, links are logged to the server console instead — auth still works locally, just without real email delivery. |
 | `NEXT_PUBLIC_DERIV_APP_ID` / `DERIV_CLIENT_SECRET` | Your platform's registered Deriv OAuth app |
 | `NEXT_PUBLIC_DERIV_REDIRECT_URI` | Must exactly match the callback URL registered with Deriv |
 | `ENCRYPTION_KEY` | 32-byte key (or any string, which is stretched via SHA-256) used to encrypt stored Deriv credentials. Generate with `openssl rand -hex 32`. |
-| `AUTH_SECRET` | Reserved for session signing (Supabase currently manages sessions itself) |
 
 Never commit `.env.local` — it's already in `.gitignore`.
 
@@ -84,7 +89,7 @@ Deploys to Cloudflare Workers:
 npm run deploy   # opennextjs-cloudflare build && opennextjs-cloudflare deploy
 ```
 
-See `DEPLOYMENT.md` for the full internal deployment runbook (Neon/Supabase/Deriv app setup, custom domain, security checklist) — that file is for the platform owner only and should not be exposed to customers.
+See `DEPLOYMENT.md` for the full internal deployment runbook (Neon/Resend/Deriv app setup, custom domain, security checklist) — that file is for the platform owner only and should not be exposed to customers.
 
 ## Testing & CI
 
@@ -93,6 +98,6 @@ See `DEPLOYMENT.md` for the full internal deployment runbook (Neon/Supabase/Deri
 ## Security notes
 
 - Route protection for `/dashboard`, `/admin`, and other authenticated pages is enforced in `src/middleware.ts`.
-- API routes independently verify the caller's session server-side (`createServerSupabaseClient().auth.getUser()`) and scope every query to the caller's `organization_id`.
-- Deriv credentials are encrypted at rest (see above) and RLS-protected at the database layer.
+- API routes independently verify the caller's session server-side (`getCurrentUser()` in `src/lib/auth.ts`, backed by a signed JWT cookie) and scope every query to the caller's `organization_id`.
+- Deriv credentials are encrypted at rest (see above). Tenant isolation is enforced in the application layer, not via Postgres RLS (see "Architecture" above).
 - Audit-relevant actions (connect, disconnect, sync) are recorded in `audit_logs`.

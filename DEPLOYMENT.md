@@ -17,18 +17,16 @@ Customer Browser
         ↓
 Cloudflare Workers (Next.js via @opennextjs/cloudflare)
         ↓
-Supabase (Auth + Database connection to Neon PostgreSQL)
+Neon PostgreSQL (single database, tenant isolation enforced in the app layer)
         ↓
-Neon PostgreSQL (single database, RLS for tenant isolation)
-        ↓
-Deriv API (OAuth 2.0 + PKCE per customer)
+Deriv API (OAuth 2.0 + PKCE, or manual API token, per customer)
 ```
 
 ## Prerequisites
 
 - Cloudflare account
 - Neon account (https://neon.tech)
-- Supabase account (https://supabase.com) - for auth and database connection
+- Resend account (https://resend.com) - for verification/reset emails
 - Deriv developers account (https://developers.deriv.com)
 - Node.js 18+ installed locally
 - GitHub account
@@ -42,20 +40,18 @@ Deriv API (OAuth 2.0 + PKCE per customer)
 3. Copy the connection string (looks like: `postgresql://username:password@endpoint.neon.tech/dbname?sslmode=require`)
 4. Save this as `DATABASE_URL`
 
-## Step 2: Create Supabase Project
+## Step 2: Create Resend Account
 
-1. Go to https://supabase.com and sign up/login
-2. Create a new project
-3. Go to Settings → Database
-4. Under "Connection string", copy the URI
-5. Replace the placeholder with your Neon connection details
-6. Save as `NEXT_PUBLIC_SUPABASE_URL`
+1. Go to https://resend.com and sign up/login
+2. Verify a sending domain (or use their shared `onboarding@resend.dev` sender for testing)
+3. Create an API key
+4. Save as `RESEND_API_KEY`
 
 ## Step 3: Run Database Migrations
 
 1. Open Neon SQL editor
-2. Copy and run the contents of `supabase/migrations/001_initial_schema.sql`
-3. Verify all tables are created
+2. Run `neon/migrations/001_initial_schema.sql`, then `neon/migrations/002_api_token_auth.sql`, in that order
+3. Verify all tables are created — you should see a `users` table (not `profiles`)
 
 ## Step 4: Register Deriv Application
 
@@ -69,16 +65,15 @@ Deriv API (OAuth 2.0 + PKCE per customer)
 Create a `.env.local` file (never commit this):
 
 ```bash
-# Supabase (connects to Neon)
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-
 # Direct Neon connection
 DATABASE_URL=postgresql://username:password@endpoint.neon.tech/dbname?sslmode=require
 
 # Authentication
 AUTH_SECRET=your-random-64-char-secret-here
+
+# Email (Resend)
+RESEND_API_KEY=re_your_resend_api_key
+EMAIL_FROM=DERIV TECH <noreply@derivtech.example.com>
 
 # Deriv Platform Credentials
 NEXT_PUBLIC_DERIV_APP_ID=your_deriv_app_id
@@ -107,7 +102,7 @@ openssl rand -hex 16
 ## Step 7: Install Dependencies
 
 ```bash
-cd deriv-partner-hub
+cd DERIV-TRADERS-COMMISSION
 npm install
 ```
 
@@ -201,8 +196,9 @@ When a customer signs up:
 - [ ] `AUTH_SECRET` is server-side only
 - [ ] `ENCRYPTION_KEY` is server-side only
 - [ ] `DERIV_CLIENT_SECRET` is server-side only
+- [ ] `RESEND_API_KEY` is server-side only
 - [ ] Customer credentials are encrypted at rest
-- [ ] RLS policies enforce tenant isolation
+- [ ] Every API route checks the session and filters by `organization_id`
 - [ ] No secrets in frontend JavaScript
 - [ ] No secrets in console.log
 - [ ] Audit logs don't contain sensitive data
@@ -232,6 +228,5 @@ When a customer signs up:
 - Check for API rate limiting
 
 ### Multi-tenant isolation breach
-- Immediately check RLS policies are active
-- Review database queries for proper `organization_id` filtering
-- Check API routes for authorization checks
+- Review database queries for proper `organization_id` filtering (isolation is enforced in the app layer, not via Postgres RLS)
+- Check API routes for authorization checks (`getCurrentUser()` in `src/lib/auth.ts`)

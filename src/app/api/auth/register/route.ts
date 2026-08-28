@@ -3,6 +3,7 @@ import { randomUUID, randomBytes } from 'crypto';
 import { sql } from '@/lib/db';
 import { hashPassword } from '@/lib/auth';
 import { slugify } from '@/lib/utils';
+import { sendVerificationEmail } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   const { fullName, email, password, orgName } = await request.json();
@@ -58,8 +59,11 @@ export async function POST(request: NextRequest) {
     VALUES (${orgId}, 'starter', 'active', 1, 3, 30, 24)
   `;
 
-  // TODO: send verifyToken via email (SMTP_* env vars are already scaffolded in .env.example).
-  // For now the account is created but flagged unverified; verify-email page exchanges the token.
+  const emailResult = await sendVerificationEmail(normalizedEmail, fullName, verifyToken);
 
-  return NextResponse.json({ ok: true });
+  // The account is created either way (never block signup on email delivery),
+  // but tell the client honestly whether a real email went out so the UI
+  // doesn't claim "check your email" when nothing was sent (e.g. missing
+  // RESEND_API_KEY in local/dev).
+  return NextResponse.json({ ok: true, emailSent: emailResult.sent });
 }
