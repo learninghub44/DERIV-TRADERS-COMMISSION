@@ -36,25 +36,35 @@ export const config = {
 
 export async function updateSession(request: NextRequest) {
   const session = await getSessionFromRequest(request);
+  const { pathname } = request.nextUrl;
+
+  // /admin/login is the admin sign-in page itself - it must be reachable
+  // without a session, and shouldn't redirect an already-authenticated
+  // non-admin away (the page handles that case itself after they submit).
+  if (pathname === '/admin/login') {
+    return NextResponse.next();
+  }
 
   // Protected routes
   const protectedPaths = ['/dashboard', '/markup', '/commissions', '/earnings', '/clients', '/trading', '/analytics', '/reports', '/settings', '/notifications', '/admin'];
-  const isProtected = protectedPaths.some(path => request.nextUrl.pathname.startsWith(path));
+  const isProtected = protectedPaths.some(path => pathname.startsWith(path));
 
   if (isProtected && !session) {
     const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    url.searchParams.set('redirect', request.nextUrl.pathname);
+    url.pathname = pathname.startsWith('/admin') ? '/admin/login' : '/login';
+    if (!pathname.startsWith('/admin')) {
+      url.searchParams.set('redirect', pathname);
+    }
     return NextResponse.redirect(url);
   }
 
   // Admin-only routes - the role is verified live against Neon (not just the
   // JWT claim), so a role change or revocation takes effect immediately
   // rather than only after the session token is refreshed.
-  if (request.nextUrl.pathname.startsWith('/admin')) {
+  if (pathname.startsWith('/admin')) {
     if (!session) {
       const url = request.nextUrl.clone();
-      url.pathname = '/dashboard';
+      url.pathname = '/admin/login';
       return NextResponse.redirect(url);
     }
 

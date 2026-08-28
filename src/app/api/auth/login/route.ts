@@ -23,5 +23,5 @@ export async function POST(request: NextRequest) {
   const token = await signSession({ sub: user.id, email: user.email, role: user.role });
   await setSessionCookie(token);
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, role: user.role });
 }
