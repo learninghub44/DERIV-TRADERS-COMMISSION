@@ -123,7 +123,7 @@ export default function DashboardPage() {
               </p>
             </div>
             <a
-              href="/settings/applications"
+              href="/settings/deriv-integration"
               className="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded-lg text-sm font-medium text-white transition-colors"
             >
               Connect Deriv
