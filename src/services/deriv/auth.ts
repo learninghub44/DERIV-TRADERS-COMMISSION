@@ -25,6 +25,15 @@ export interface DerivOAuthConfig {
   clientId: string;
   redirectUri: string;
   scope: string[];
+  /**
+   * Optional V1 app ID from the Legacy Deriv API. Only set this if your
+   * platform ALSO has a registered app on legacy-api.deriv.com in addition
+   * to its new-API OAuth2 client. Deriv uses it to route a user who still
+   * belongs to the old platform to the correct (legacy) version of your
+   * app during login - it plays no role in the token exchange itself.
+   * See: https://developers.deriv.com/docs/intro/oauth/
+   */
+  legacyAppId?: string;
 }
 
 export interface DerivTokenResponse {
@@ -88,6 +97,12 @@ export async function generateCodeChallenge(verifier: string): Promise<string> {
 /**
  * Build the Deriv OAuth 2.0 authorization URL.
  * Uses Authorization Code flow with PKCE per official docs.
+ *
+ * client_id is always required (your registered OAuth2 client on the
+ * current Deriv API). config.legacyAppId is optional and only needed if
+ * your platform also maintains a separate app on the Legacy Deriv API -
+ * appending it lets Deriv route users who still belong to the old
+ * platform to that app instead of failing to authenticate them.
  */
 export function buildDerivAuthUrl(config: DerivOAuthConfig, codeChallenge: string, state: string): string {
   const params = new URLSearchParams({
@@ -100,7 +115,39 @@ export function buildDerivAuthUrl(config: DerivOAuthConfig, codeChallenge: strin
     code_challenge_method: 'S256',
   });
 
+  if (config.legacyAppId) {
+    params.set('app_id', config.legacyAppId);
+  }
+
   return `${DERIV_AUTH_URL}?${params.toString()}`;
+}
+
+/**
+ * Resolve the platform's OAuth2 client_id.
+ *
+ * Prefers NEXT_PUBLIC_DERIV_CLIENT_ID (the current, correctly-named env
+ * var - "client_id" is what Deriv's own docs call this value for the
+ * current API). Falls back to the older NEXT_PUBLIC_DERIV_APP_ID name for
+ * deployments that haven't renamed their env var yet - the value itself
+ * is unchanged, only the variable name was previously misleading.
+ */
+export function getDerivClientId(): string {
+  const clientId = process.env.NEXT_PUBLIC_DERIV_CLIENT_ID || process.env.NEXT_PUBLIC_DERIV_APP_ID;
+  if (!clientId) {
+    throw new Error(
+      'NEXT_PUBLIC_DERIV_CLIENT_ID is not set. Configure your registered Deriv OAuth2 client_id.'
+    );
+  }
+  return clientId;
+}
+
+/**
+ * Resolve the platform's optional Legacy Deriv API app_id, if configured.
+ * Returns undefined (not empty string) when unset, since buildDerivAuthUrl
+ * uses the presence of this value to decide whether to append &app_id=.
+ */
+export function getDerivLegacyAppId(): string | undefined {
+  return process.env.DERIV_LEGACY_APP_ID || undefined;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { buildDerivAuthUrl, generatePKCE, generateCodeChallenge } from '@/services/deriv/auth';
+import { buildDerivAuthUrl, generatePKCE, generateCodeChallenge, getDerivClientId, getDerivLegacyAppId } from '@/services/deriv/auth';
 import crypto from 'crypto';
 
 /**
@@ -42,9 +42,10 @@ export async function POST(request: NextRequest) {
 
     const authorizationUrl = buildDerivAuthUrl(
       {
-        clientId: process.env.NEXT_PUBLIC_DERIV_APP_ID!,
+        clientId: getDerivClientId(),
         redirectUri: process.env.NEXT_PUBLIC_DERIV_REDIRECT_URI!,
         scope: ['application_read'],
+        legacyAppId: getDerivLegacyAppId(),
       },
       codeChallenge,
       state

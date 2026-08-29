@@ -75,7 +75,8 @@ See `.env.example` for the full list with descriptions. At minimum for local dev
 | `DATABASE_URL` | Direct Neon connection string |
 | `AUTH_SECRET` | JWT signing secret for session cookies (`src/lib/auth.ts`). Generate with `openssl rand -hex 32`. |
 | `RESEND_API_KEY` | Sends verification/reset emails. If unset, links are logged to the server console instead — auth still works locally, just without real email delivery. |
-| `NEXT_PUBLIC_DERIV_APP_ID` / `DERIV_CLIENT_SECRET` | Your platform's registered Deriv OAuth app |
+| `NEXT_PUBLIC_DERIV_CLIENT_ID` | Your platform's registered Deriv OAuth2 `client_id` (public client, no secret - auth uses PKCE) |
+| `DERIV_LEGACY_APP_ID` | Optional - only if your platform also has a separate Legacy Deriv API app; appended to the login URL so Deriv can route legacy-platform users correctly |
 | `NEXT_PUBLIC_DERIV_REDIRECT_URI` | Must exactly match the callback URL registered with Deriv |
 | `ENCRYPTION_KEY` | 32-byte key (or any string, which is stretched via SHA-256) used to encrypt stored Deriv credentials. Generate with `openssl rand -hex 32`. |
 

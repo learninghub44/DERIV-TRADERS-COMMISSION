@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getOrgContext } from '@/lib/org';
 import { getCurrentUser } from '@/lib/auth';
-import { exchangeCodeForToken } from '@/services/deriv/auth';
+import { exchangeCodeForToken, getDerivClientId } from '@/services/deriv/auth';
 import { encrypt } from '@/lib/encryption';
 
 /**
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     const tokenData = await exchangeCodeForToken(
       code,
       codeVerifier,
-      process.env.NEXT_PUBLIC_DERIV_APP_ID!,
+      getDerivClientId(),
       process.env.NEXT_PUBLIC_DERIV_REDIRECT_URI!
     );
 

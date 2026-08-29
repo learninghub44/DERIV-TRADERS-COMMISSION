@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getOrgContext } from '@/lib/org';
 import { decrypt, encrypt } from '@/lib/encryption';
-import { refreshAccessToken } from '@/services/deriv/auth';
+import { refreshAccessToken, getDerivClientId } from '@/services/deriv/auth';
 
 /**
  * DERIV TECH - Deriv Data Synchronization API
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
             const plaintextRefresh = decrypt(integration.refresh_token);
             const refreshed = await refreshAccessToken(
               plaintextRefresh,
-              process.env.NEXT_PUBLIC_DERIV_APP_ID!
+              getDerivClientId()
             );
 
             plaintextToken = refreshed.access_token;

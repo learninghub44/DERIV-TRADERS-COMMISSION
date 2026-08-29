@@ -58,7 +58,8 @@ Deriv API (OAuth 2.0 + PKCE, or manual API token, per customer)
 1. Go to https://developers.deriv.com
 2. Register a new OAuth2 application
 3. Set callback URL to: `https://your-domain.com/api/deriv/oauth/callback`
-4. Save the App ID and Client Secret
+4. Save the `client_id` (this is a public client authenticated via PKCE - there's no client secret to save)
+5. Only if you separately maintain an app on the Legacy Deriv API (legacy-api.deriv.com), also note that app's `app_id` - it's optional and only needed to route legacy-platform users correctly (see Step 5)
 
 ## Step 5: Configure Environment Variables
 
@@ -76,8 +77,8 @@ RESEND_API_KEY=re_your_resend_api_key
 EMAIL_FROM=DERIV TECH <noreply@derivtech.christech.co.ke>
 
 # Deriv Platform Credentials
-NEXT_PUBLIC_DERIV_APP_ID=your_deriv_app_id
-DERIV_CLIENT_SECRET=your_deriv_client_secret
+NEXT_PUBLIC_DERIV_CLIENT_ID=your_deriv_client_id
+DERIV_LEGACY_APP_ID=
 
 # Application URLs
 APP_URL=https://your-domain.com
@@ -195,7 +196,6 @@ When a customer signs up:
 - [ ] `DATABASE_URL` is server-side only
 - [ ] `AUTH_SECRET` is server-side only
 - [ ] `ENCRYPTION_KEY` is server-side only
-- [ ] `DERIV_CLIENT_SECRET` is server-side only
 - [ ] `RESEND_API_KEY` is server-side only
 - [ ] Customer credentials are encrypted at rest
 - [ ] Every API route checks the session and filters by `organization_id`
@@ -219,7 +219,7 @@ When a customer signs up:
 
 ### OAuth callback fails
 - Verify callback URL matches exactly in Deriv dashboard
-- Check that `DERIV_CLIENT_SECRET` is correct
+- Check that `NEXT_PUBLIC_DERIV_CLIENT_ID` matches your registered OAuth2 app's `client_id`
 - Verify `AUTH_SECRET` is set
 
 ### Data not syncing
