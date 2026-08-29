@@ -68,17 +68,15 @@ npm run build       # production build
 
 ### Required environment variables
 
-See `.env.example` for the full list with descriptions. At minimum for local dev:
+See `.env.example` for the full list with descriptions. Only these need to be set as actual environment variables — they're bootstrap secrets the app needs before it can even reach the database:
 
 | Variable | Purpose |
 |---|---|
 | `DATABASE_URL` | Direct Neon connection string |
 | `AUTH_SECRET` | JWT signing secret for session cookies (`src/lib/auth.ts`). Generate with `openssl rand -hex 32`. |
-| `RESEND_API_KEY` | Sends verification/reset emails. If unset, links are logged to the server console instead — auth still works locally, just without real email delivery. |
-| `NEXT_PUBLIC_DERIV_CLIENT_ID` | Your platform's registered Deriv OAuth2 `client_id` (public client, no secret - auth uses PKCE) |
-| `DERIV_LEGACY_APP_ID` | Optional - only if your platform also has a separate Legacy Deriv API app; appended to the login URL so Deriv can route legacy-platform users correctly |
-| `NEXT_PUBLIC_DERIV_REDIRECT_URI` | Must exactly match the callback URL registered with Deriv |
-| `ENCRYPTION_KEY` | 32-byte key (or any string, which is stretched via SHA-256) used to encrypt stored Deriv credentials. Generate with `openssl rand -hex 32`. |
+| `ENCRYPTION_KEY` | 32-byte key (or any string, which is stretched via SHA-256) used to encrypt stored Deriv credentials and secret platform settings. Generate with `openssl rand -hex 32`. |
+
+Everything else — Deriv `client_id`, optional legacy `app_id`, OAuth redirect URI, Resend API key, email sender, and app URL — is configured from **`/admin/settings`** in the running app (as the platform's `super_admin`), not as environment variables. Values set there are stored in the `platform_settings` table (see `neon/migrations/003_platform_settings.sql`) and take priority; the matching env vars in `.env.example` (`NEXT_PUBLIC_DERIV_CLIENT_ID`, `RESEND_API_KEY`, etc.) still work as a fallback for local dev or a first deploy before anyone has logged into `/admin/settings`, but nothing needs to be set in Cloudflare for day-to-day config changes once an admin account exists.
 
 Never commit `.env.local` — it's already in `.gitignore`.
 

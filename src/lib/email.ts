@@ -1,40 +1,44 @@
 import { Resend } from 'resend';
+import { getSetting } from './settings';
 
 // -----------------------------------------------------------------------------
 // Transactional email (Resend)
 // -----------------------------------------------------------------------------
-// Sends account-verification and password-reset emails. If RESEND_API_KEY is
-// not configured (e.g. local dev without a key), we log the link to the
-// console instead of throwing, so auth flows still work end-to-end locally.
+// Sends account-verification and password-reset emails. Configuration (API
+// key, from address, app URL) comes from /admin/settings first, falling
+// back to environment variables - see src/lib/settings.ts. If no API key
+// is configured anywhere, we log the link to the console instead of
+// throwing, so auth flows still work end-to-end in local dev.
 
-function getResend(): Resend | null {
-  const apiKey = process.env.RESEND_API_KEY;
+async function getResend(): Promise<Resend | null> {
+  const apiKey = await getSetting('resend_api_key');
   if (!apiKey) return null;
   return new Resend(apiKey);
 }
 
-function getAppUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000';
+async function getAppUrl(): Promise<string> {
+  return (await getSetting('app_url')) || 'http://localhost:3000';
 }
 
-function getFromAddress(): string {
-  return process.env.EMAIL_FROM || 'DERIV TECH <noreply@derivtech.christech.co.ke>';
+async function getFromAddress(): Promise<string> {
+  return (await getSetting('email_from')) || 'DERIV TECH <noreply@derivtech.christech.co.ke>';
 }
 
 async function sendEmail(to: string, subject: string, html: string, fallbackLabel: string, fallbackUrl: string) {
-  const resend = getResend();
+  const resend = await getResend();
 
   if (!resend) {
-    // No RESEND_API_KEY configured - don't silently pretend to send.
-    // Log the link so local/dev flows are still usable end-to-end.
+    // No Resend API key configured (neither in /admin/settings nor
+    // RESEND_API_KEY) - don't silently pretend to send. Log the link so
+    // local/dev flows are still usable end-to-end.
     console.warn(
-      `[email] RESEND_API_KEY not set - skipping real send. ${fallbackLabel}: ${fallbackUrl}`
+      `[email] No Resend API key configured - skipping real send. ${fallbackLabel}: ${fallbackUrl}`
     );
     return { sent: false as const };
   }
 
   const { error } = await resend.emails.send({
-    from: getFromAddress(),
+    from: await getFromAddress(),
     to,
     subject,
     html,
@@ -49,7 +53,8 @@ async function sendEmail(to: string, subject: string, html: string, fallbackLabe
 }
 
 export async function sendVerificationEmail(to: string, fullName: string, token: string) {
-  const verifyUrl = `${getAppUrl()}/api/auth/verify-email?token=${token}`;
+  const appUrl = await getAppUrl();
+  const verifyUrl = `${appUrl}/api/auth/verify-email?token=${token}`;
 
   const html = `
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
@@ -69,7 +74,8 @@ export async function sendVerificationEmail(to: string, fullName: string, token:
 }
 
 export async function sendPasswordResetEmail(to: string, token: string) {
-  const resetUrl = `${getAppUrl()}/reset-password?token=${token}`;
+  const appUrl = await getAppUrl();
+  const resetUrl = `${appUrl}/reset-password?token=${token}`;
 
   const html = `
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">

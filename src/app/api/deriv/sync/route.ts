@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
             const plaintextRefresh = decrypt(integration.refresh_token);
             const refreshed = await refreshAccessToken(
               plaintextRefresh,
-              getDerivClientId()
+              await getDerivClientId()
             );
 
             plaintextToken = refreshed.access_token;

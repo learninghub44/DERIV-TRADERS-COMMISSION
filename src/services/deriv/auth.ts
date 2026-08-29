@@ -21,6 +21,8 @@
  * in the Deriv application dashboard directly.
  */
 
+import { getSetting } from '@/lib/settings';
+
 export interface DerivOAuthConfig {
   clientId: string;
   redirectUri: string;
@@ -125,29 +127,45 @@ export function buildDerivAuthUrl(config: DerivOAuthConfig, codeChallenge: strin
 /**
  * Resolve the platform's OAuth2 client_id.
  *
- * Prefers NEXT_PUBLIC_DERIV_CLIENT_ID (the current, correctly-named env
- * var - "client_id" is what Deriv's own docs call this value for the
- * current API). Falls back to the older NEXT_PUBLIC_DERIV_APP_ID name for
- * deployments that haven't renamed their env var yet - the value itself
- * is unchanged, only the variable name was previously misleading.
+ * Checks the admin-editable platform_settings table first (set via
+ * /admin/settings), then falls back to NEXT_PUBLIC_DERIV_CLIENT_ID, then
+ * the older NEXT_PUBLIC_DERIV_APP_ID env var name for deployments that
+ * haven't renamed it yet - the value itself is unchanged, only the
+ * variable name was previously misleading. See src/lib/settings.ts.
  */
-export function getDerivClientId(): string {
-  const clientId = process.env.NEXT_PUBLIC_DERIV_CLIENT_ID || process.env.NEXT_PUBLIC_DERIV_APP_ID;
+export async function getDerivClientId(): Promise<string> {
+  const clientId = await getSetting('deriv_client_id');
   if (!clientId) {
     throw new Error(
-      'NEXT_PUBLIC_DERIV_CLIENT_ID is not set. Configure your registered Deriv OAuth2 client_id.'
+      'No Deriv client_id configured. Set it in /admin/settings or NEXT_PUBLIC_DERIV_CLIENT_ID.'
     );
   }
   return clientId;
 }
 
 /**
- * Resolve the platform's optional Legacy Deriv API app_id, if configured.
- * Returns undefined (not empty string) when unset, since buildDerivAuthUrl
- * uses the presence of this value to decide whether to append &app_id=.
+ * Resolve the platform's optional Legacy Deriv API app_id, if configured
+ * (via /admin/settings or the DERIV_LEGACY_APP_ID env var). Returns
+ * undefined (not empty string) when unset, since buildDerivAuthUrl uses
+ * the presence of this value to decide whether to append &app_id=.
  */
-export function getDerivLegacyAppId(): string | undefined {
-  return process.env.DERIV_LEGACY_APP_ID || undefined;
+export async function getDerivLegacyAppId(): Promise<string | undefined> {
+  const value = await getSetting('deriv_legacy_app_id');
+  return value || undefined;
+}
+
+/**
+ * Resolve the OAuth redirect_uri to use for both the authorization URL
+ * and the token exchange (they must match exactly, per Deriv's docs).
+ */
+export async function getDerivRedirectUri(): Promise<string> {
+  const uri = await getSetting('deriv_redirect_uri');
+  if (!uri) {
+    throw new Error(
+      'No Deriv redirect_uri configured. Set it in /admin/settings or NEXT_PUBLIC_DERIV_REDIRECT_URI.'
+    );
+  }
+  return uri;
 }
 
 /**

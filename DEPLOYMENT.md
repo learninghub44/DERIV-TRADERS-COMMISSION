@@ -50,7 +50,7 @@ Deriv API (OAuth 2.0 + PKCE, or manual API token, per customer)
 ## Step 3: Run Database Migrations
 
 1. Open Neon SQL editor
-2. Run `neon/migrations/001_initial_schema.sql`, then `neon/migrations/002_api_token_auth.sql`, in that order
+2. Run `neon/migrations/001_initial_schema.sql`, then `002_api_token_auth.sql`, then `003_platform_settings.sql`, in that order
 3. Verify all tables are created — you should see a `users` table (not `profiles`)
 
 ## Step 4: Register Deriv Application
@@ -58,37 +58,26 @@ Deriv API (OAuth 2.0 + PKCE, or manual API token, per customer)
 1. Go to https://developers.deriv.com
 2. Register a new OAuth2 application
 3. Set callback URL to: `https://your-domain.com/api/deriv/oauth/callback`
-4. Save the `client_id` (this is a public client authenticated via PKCE - there's no client secret to save)
-5. Only if you separately maintain an app on the Legacy Deriv API (legacy-api.deriv.com), also note that app's `app_id` - it's optional and only needed to route legacy-platform users correctly (see Step 5)
+4. Note the `client_id` (this is a public client authenticated via PKCE - there's no client secret to save). You'll enter this at `/admin/settings` in Step 10, not as an environment variable.
+5. Only if you separately maintain an app on the Legacy Deriv API (legacy-api.deriv.com), also note that app's `app_id` - it's optional and only needed to route legacy-platform users correctly
 
-## Step 5: Configure Environment Variables
+## Step 5: Configure Bootstrap Environment Variables
 
-Create a `.env.local` file (never commit this):
+These three are the ONLY values that must be real environment variables - the app needs them before it can even reach the database that stores everything else. Create a `.env.local` file for local dev (never commit this) or set these on Cloudflare for production:
 
 ```bash
 # Direct Neon connection
 DATABASE_URL=postgresql://username:password@endpoint.neon.tech/dbname?sslmode=require
 
-# Authentication
+# Session signing
 AUTH_SECRET=your-random-64-char-secret-here
 
-# Email (Resend)
-RESEND_API_KEY=re_your_resend_api_key
-EMAIL_FROM=DERIV TECH <noreply@derivtech.christech.co.ke>
-
-# Deriv Platform Credentials
-NEXT_PUBLIC_DERIV_CLIENT_ID=your_deriv_client_id
-DERIV_LEGACY_APP_ID=
-
-# Application URLs
-APP_URL=https://your-domain.com
-NEXT_PUBLIC_APP_URL=https://your-domain.com
-NEXT_PUBLIC_APP_NAME=DERIV TECH
-NEXT_PUBLIC_DERIV_REDIRECT_URI=https://your-domain.com/api/deriv/oauth/callback
-
-# Encryption
+# Encrypts customer Deriv credentials AND secret platform settings
+# (e.g. the Resend API key you'll enter in Step 10)
 ENCRYPTION_KEY=your-32-char-encryption-key-here
 ```
+
+Everything else - Deriv `client_id`/legacy `app_id`/redirect URI, Resend API key, email sender, app URL - is configured later from `/admin/settings` (Step 10), not here. `.env.example` documents fallback env var names for these too, useful only for local dev before you've created an admin account.
 
 ## Step 6: Generate Secrets
 
@@ -141,23 +130,33 @@ npm install @opennextjs/cloudflare wrangler
 npm run deploy
 ```
 
-## Step 10: Configure Custom Domain
+## Step 10: Create Admin Account and Configure Platform Settings
+
+1. Register a normal account through the app's `/register` page (any email/password)
+2. Promote it to admin in the Neon SQL editor:
+   ```sql
+   UPDATE users SET role = 'super_admin' WHERE email = 'your-admin-email@example.com';
+   ```
+3. Sign in at `/admin/login` with that account
+4. Go to `/admin/settings` and fill in:
+   - **Deriv OAuth**: Client ID (from Step 4), Legacy App ID (only if applicable), Redirect URI (must match Step 4 exactly)
+   - **Email (Resend)**: API key (from Step 2), From address (must use your verified Resend domain), App URL (your production domain)
+5. Save both sections - customers can register and connect Deriv immediately after, with no further Cloudflare configuration needed
+
+## Step 11: Configure Custom Domain
 
 1. Go to Cloudflare Dashboard
 2. Add your custom domain
 3. Update DNS records
-4. Update environment variables with production URL:
-   - `APP_URL=https://derivtech.example.com`
-   - `NEXT_PUBLIC_APP_URL=https://derivtech.example.com`
-   - `NEXT_PUBLIC_DERIV_REDIRECT_URI=https://derivtech.example.com/api/deriv/oauth/callback`
+4. Update the **App URL** and **Deriv OAuth Redirect URI** at `/admin/settings` (Step 10) to match your production domain - no environment variables to touch
 
-## Step 11: Update Deriv Application
+## Step 12: Update Deriv Application
 
 1. Go to https://developers.deriv.com
 2. Update your application's callback URL to production domain
 3. Verify OAuth flow works in production
 
-## Step 12: Test Production
+## Step 13: Test Production
 
 - [ ] Registration works
 - [ ] Login works
@@ -196,7 +195,7 @@ When a customer signs up:
 - [ ] `DATABASE_URL` is server-side only
 - [ ] `AUTH_SECRET` is server-side only
 - [ ] `ENCRYPTION_KEY` is server-side only
-- [ ] `RESEND_API_KEY` is server-side only
+- [ ] `RESEND_API_KEY` is server-side only (or, if set via `/admin/settings` instead, it's encrypted at rest in `platform_settings`)
 - [ ] Customer credentials are encrypted at rest
 - [ ] Every API route checks the session and filters by `organization_id`
 - [ ] No secrets in frontend JavaScript
@@ -218,8 +217,8 @@ When a customer signs up:
 ## Troubleshooting
 
 ### OAuth callback fails
-- Verify callback URL matches exactly in Deriv dashboard
-- Check that `NEXT_PUBLIC_DERIV_CLIENT_ID` matches your registered OAuth2 app's `client_id`
+- Verify the Redirect URI at `/admin/settings` matches exactly what's registered in the Deriv dashboard
+- Check that the Client ID at `/admin/settings` matches your registered OAuth2 app's `client_id`
 - Verify `AUTH_SECRET` is set
 
 ### Data not syncing

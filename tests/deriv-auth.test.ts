@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
   generatePKCE,
   generateCodeChallenge,
@@ -6,6 +6,15 @@ import {
   getDerivClientId,
   getDerivLegacyAppId,
 } from '@/services/deriv/auth';
+
+// getDerivClientId/getDerivLegacyAppId now go through src/lib/settings.ts,
+// which queries platform_settings via src/lib/db's `sql`. Mock that so
+// these tests exercise the env-var-fallback and DB-priority logic without
+// a real database connection.
+const mockSql = vi.fn(async () => [] as any[]);
+vi.mock('@/lib/db', () => ({
+  sql: (...args: any[]) => mockSql(...args),
+}));
 
 describe('generatePKCE', () => {
   it('returns a URL-safe base64 string with no padding', () => {
@@ -83,24 +92,35 @@ describe('getDerivClientId', () => {
 
   afterEach(() => {
     process.env = { ...originalEnv };
+    mockSql.mockReset();
+    mockSql.mockResolvedValue([]);
   });
 
-  it('prefers NEXT_PUBLIC_DERIV_CLIENT_ID when set', () => {
+  it('prefers a database override over any env var', async () => {
+    mockSql.mockResolvedValueOnce([{ value: 'db-configured-id' }]);
+    process.env.NEXT_PUBLIC_DERIV_CLIENT_ID = 'new-style-id';
+    expect(await getDerivClientId()).toBe('db-configured-id');
+  });
+
+  it('falls back to NEXT_PUBLIC_DERIV_CLIENT_ID when no DB override', async () => {
+    mockSql.mockResolvedValue([]);
     process.env.NEXT_PUBLIC_DERIV_CLIENT_ID = 'new-style-id';
     process.env.NEXT_PUBLIC_DERIV_APP_ID = 'old-style-id';
-    expect(getDerivClientId()).toBe('new-style-id');
+    expect(await getDerivClientId()).toBe('new-style-id');
   });
 
-  it('falls back to NEXT_PUBLIC_DERIV_APP_ID for older deployments', () => {
+  it('falls back to NEXT_PUBLIC_DERIV_APP_ID for older deployments', async () => {
+    mockSql.mockResolvedValue([]);
     delete process.env.NEXT_PUBLIC_DERIV_CLIENT_ID;
     process.env.NEXT_PUBLIC_DERIV_APP_ID = 'old-style-id';
-    expect(getDerivClientId()).toBe('old-style-id');
+    expect(await getDerivClientId()).toBe('old-style-id');
   });
 
-  it('throws when neither is set', () => {
+  it('throws when nothing is configured anywhere', async () => {
+    mockSql.mockResolvedValue([]);
     delete process.env.NEXT_PUBLIC_DERIV_CLIENT_ID;
     delete process.env.NEXT_PUBLIC_DERIV_APP_ID;
-    expect(() => getDerivClientId()).toThrow();
+    await expect(getDerivClientId()).rejects.toThrow();
   });
 });
 
@@ -109,20 +129,25 @@ describe('getDerivLegacyAppId', () => {
 
   afterEach(() => {
     process.env = { ...originalEnv };
+    mockSql.mockReset();
+    mockSql.mockResolvedValue([]);
   });
 
-  it('returns undefined when DERIV_LEGACY_APP_ID is unset', () => {
+  it('returns undefined when unset anywhere', async () => {
+    mockSql.mockResolvedValue([]);
     delete process.env.DERIV_LEGACY_APP_ID;
-    expect(getDerivLegacyAppId()).toBeUndefined();
+    expect(await getDerivLegacyAppId()).toBeUndefined();
   });
 
-  it('returns undefined (not empty string) when set to an empty string', () => {
-    process.env.DERIV_LEGACY_APP_ID = '';
-    expect(getDerivLegacyAppId()).toBeUndefined();
+  it('prefers a database override over the env var', async () => {
+    mockSql.mockResolvedValueOnce([{ value: 'db-legacy-id' }]);
+    process.env.DERIV_LEGACY_APP_ID = 'env-legacy-id';
+    expect(await getDerivLegacyAppId()).toBe('db-legacy-id');
   });
 
-  it('returns the configured value when set', () => {
+  it('falls back to the env var when no DB override', async () => {
+    mockSql.mockResolvedValue([]);
     process.env.DERIV_LEGACY_APP_ID = 'legacy789';
-    expect(getDerivLegacyAppId()).toBe('legacy789');
+    expect(await getDerivLegacyAppId()).toBe('legacy789');
   });
 });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { buildDerivAuthUrl, generatePKCE, generateCodeChallenge, getDerivClientId, getDerivLegacyAppId } from '@/services/deriv/auth';
+import { buildDerivAuthUrl, generatePKCE, generateCodeChallenge, getDerivClientId, getDerivLegacyAppId, getDerivRedirectUri } from '@/services/deriv/auth';
 import crypto from 'crypto';
 
 /**
@@ -40,12 +40,18 @@ export async function POST(request: NextRequest) {
     const codeChallenge = await generateCodeChallenge(codeVerifier);
     const state = crypto.randomBytes(32).toString('hex');
 
+    const [clientId, redirectUri, legacyAppId] = await Promise.all([
+      getDerivClientId(),
+      getDerivRedirectUri(),
+      getDerivLegacyAppId(),
+    ]);
+
     const authorizationUrl = buildDerivAuthUrl(
       {
-        clientId: getDerivClientId(),
-        redirectUri: process.env.NEXT_PUBLIC_DERIV_REDIRECT_URI!,
+        clientId,
+        redirectUri,
         scope: ['application_read'],
-        legacyAppId: getDerivLegacyAppId(),
+        legacyAppId,
       },
       codeChallenge,
       state
