@@ -52,10 +52,6 @@ export default function DerivIntegrationPage() {
   const [oauthAppId, setOauthAppId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [showTokenForm, setShowTokenForm] = useState(false);
-  const [tokenAppId, setTokenAppId] = useState('');
-  const [tokenValue, setTokenValue] = useState('');
-  const [connectingToken, setConnectingToken] = useState(false);
 
   // Check for success/error from OAuth callback
   useEffect(() => {
@@ -122,36 +118,6 @@ export default function DerivIntegrationPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to initiate connection. Please try again.');
       setConnecting(false);
-    }
-  }
-
-  async function handleConnectWithToken(e: React.FormEvent) {
-    e.preventDefault();
-    setConnectingToken(true);
-    setError(null);
-
-    try {
-      const response = await fetch('/api/deriv/connect-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appId: tokenAppId, apiToken: tokenValue }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to connect');
-      }
-
-      setSuccess('Your Deriv application has been successfully connected!');
-      setShowTokenForm(false);
-      setTokenAppId('');
-      setTokenValue('');
-      loadIntegration();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to connect. Please try again.');
-    } finally {
-      setConnectingToken(false);
     }
   }
 
@@ -313,12 +279,6 @@ export default function DerivIntegrationPage() {
                   )}
                   {connecting ? 'Connecting...' : 'Connect Deriv'}
                 </button>
-                <button
-                  onClick={() => setShowTokenForm((v) => !v)}
-                  className="text-xs text-surface-400 hover:text-white transition-colors"
-                >
-                  {showTokenForm ? 'Cancel' : 'Have an API token instead?'}
-                </button>
               </div>
             ) : (
               <>
@@ -370,57 +330,6 @@ export default function DerivIntegrationPage() {
               </div>
             </dl>
           </div>
-        )}
-
-        {/* Manual API Token Form */}
-        {!integration && showTokenForm && (
-          <form
-            onSubmit={handleConnectWithToken}
-            className="mt-6 pt-6 border-t border-surface-800 space-y-4"
-          >
-            <div>
-              <label htmlFor="tokenAppId" className="block text-sm font-medium text-white mb-1">
-                Deriv App ID
-              </label>
-              <input
-                id="tokenAppId"
-                type="text"
-                required
-                value={tokenAppId}
-                onChange={(e) => setTokenAppId(e.target.value)}
-                placeholder="12345"
-                className="w-full px-3 py-2 rounded-lg bg-surface-800 border border-surface-700 text-white text-sm placeholder:text-surface-500 focus:outline-none focus:border-brand-500"
-              />
-            </div>
-            <div>
-              <label htmlFor="tokenValue" className="block text-sm font-medium text-white mb-1">
-                Deriv API Token
-              </label>
-              <input
-                id="tokenValue"
-                type="password"
-                required
-                value={tokenValue}
-                onChange={(e) => setTokenValue(e.target.value)}
-                placeholder="Paste your API token"
-                autoComplete="off"
-                className="w-full px-3 py-2 rounded-lg bg-surface-800 border border-surface-700 text-white text-sm placeholder:text-surface-500 focus:outline-none focus:border-brand-500"
-              />
-              <p className="text-xs text-surface-500 mt-1">
-                Generate one at Deriv &gt; Settings &gt; API token with the{' '}
-                <code className="px-1 py-0.5 bg-surface-800 rounded">application_read</code> scope.
-                We verify it works before saving, then encrypt it - it's never shown again after this.
-              </p>
-            </div>
-            <button
-              type="submit"
-              disabled={connectingToken}
-              className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-medium text-sm transition-colors disabled:opacity-50"
-            >
-              {connectingToken && <Loader2 className="w-4 h-4 animate-spin" />}
-              {connectingToken ? 'Verifying...' : 'Connect with Token'}
-            </button>
-          </form>
         )}
 
         {/* Sync Error */}

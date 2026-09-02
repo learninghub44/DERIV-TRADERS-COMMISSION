@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getOrgContext } from '@/lib/org';
+import { getGuestConnection } from '@/lib/guest';
 
 /**
  * DERIV TECH - Current Integration Status
@@ -12,7 +13,20 @@ export async function GET() {
   try {
     const ctx = await getOrgContext();
     if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      const connection = await getGuestConnection();
+      return NextResponse.json({
+        integration: connection ? {
+          derivAppId: connection.deriv_app_id,
+          appName: 'Deriv Application',
+          connectionStatus: connection.connection_status,
+          authMethod: 'oauth',
+          lastSyncAt: null,
+          lastSuccessfulSyncAt: null,
+          syncError: null,
+          markupPercentage: '0',
+          createdAt: null,
+        } : null,
+      });
     }
 
     const rows = await sql`

@@ -17,6 +17,7 @@ export default function CommissionsPage() {
   });
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [notification, setNotification] = useState<{ title: string; message: string } | null>(null);
   useEffect(() => {
     loadCommissionData();
   }, []);
@@ -26,7 +27,8 @@ export default function CommissionsPage() {
     try {
       const res = await fetch('/api/commissions');
       if (!res.ok) return;
-      const { records: data } = await res.json();
+      const { records: data, notification: apiNotification } = await res.json();
+      setNotification(apiNotification || null);
 
       setRecords(data || []);
 
@@ -88,6 +90,18 @@ export default function CommissionsPage() {
 
   return (
     <div className="space-y-6">
+      {notification && (
+        <div className="p-4 rounded-xl bg-brand-600/10 border border-brand-600/20">
+          <p className="text-sm font-medium text-white">{notification.title}</p>
+          <p className="text-xs text-surface-400 mt-1">{notification.message}</p>
+          <a
+            href="/settings/deriv-integration"
+            className="inline-block mt-3 px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded-lg text-sm font-medium text-white"
+          >
+            Connect Deriv
+          </a>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Commissions</h1>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
 import { buildDerivAuthUrl, generatePKCE, generateCodeChallenge, getDerivClientId, getDerivLegacyAppId, getDerivRedirectUri } from '@/services/deriv/auth';
 import crypto from 'crypto';
+import { createGuestId, GUEST_COOKIE } from '@/lib/guest';
 
 /**
  * IMPORTANT: `client_id` here is DERIV TECH's own platform-wide Deriv
@@ -19,12 +19,6 @@ import crypto from 'crypto';
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const body = await request.json().catch(() => ({}));
     const targetAppId = typeof body.appId === 'string' ? body.appId.trim() : '';
 
@@ -60,6 +54,15 @@ export async function POST(request: NextRequest) {
     // NOTE: both keys are returned - the applications page reads `url`
     // while the deriv-integration settings page reads `authorizationUrl`.
     const response = NextResponse.json({ url: authorizationUrl, authorizationUrl });
+
+    const guestId = request.cookies.get(GUEST_COOKIE)?.value || createGuestId();
+    response.cookies.set(GUEST_COOKIE, guestId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 30,
+      path: '/',
+    });
 
     // Store PKCE and state in httpOnly cookies
     response.cookies.set('deriv_code_verifier', codeVerifier, {

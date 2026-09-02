@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getOrgContext } from '@/lib/org';
+import { getGuestId, isGuestId } from '@/lib/guest';
 
 /**
  * DERIV TECH - Deriv Integration Disconnect
@@ -17,7 +18,15 @@ export async function POST(request: NextRequest) {
   try {
     const ctx = await getOrgContext();
     if (!ctx) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      const visitorId = await getGuestId();
+      if (!isGuestId(visitorId)) return NextResponse.json({ success: true });
+      await sql`
+        UPDATE guest_deriv_connections
+        SET connection_status = 'disconnected', access_token = '', refresh_token = NULL,
+            token_expires_at = NULL, updated_at = NOW()
+        WHERE visitor_id = ${visitorId}
+      `;
+      return NextResponse.json({ success: true });
     }
     const { user, orgId } = ctx;
 

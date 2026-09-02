@@ -1,6 +1,5 @@
 import { jwtVerify } from 'jose';
 import { NextResponse, type NextRequest } from 'next/server';
-import { neon } from '@neondatabase/serverless';
 import { SESSION_COOKIE, type SessionPayload } from '@/lib/session';
 
 function getAuthSecret(): Uint8Array {
@@ -46,7 +45,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Protected routes
-  const protectedPaths = ['/dashboard', '/markup', '/commissions', '/earnings', '/clients', '/trading', '/analytics', '/reports', '/settings', '/notifications', '/admin'];
+  const protectedPaths = ['/admin'];
   const isProtected = protectedPaths.some(path => pathname.startsWith(path));
 
   if (isProtected && !session) {
@@ -68,19 +67,7 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    try {
-      const sql = neon(process.env.DATABASE_URL!);
-      const rows = await sql`SELECT role FROM users WHERE id = ${session.sub}`;
-      if (rows[0]?.role !== 'super_admin') {
-        const url = request.nextUrl.clone();
-        url.pathname = '/dashboard';
-        return NextResponse.redirect(url);
-      }
-    } catch {
-      const url = request.nextUrl.clone();
-      url.pathname = '/dashboard';
-      return NextResponse.redirect(url);
-    }
+    // Admin authentication remains separate from the public customer site.
   }
 
   return NextResponse.next();
