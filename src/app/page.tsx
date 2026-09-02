@@ -48,8 +48,8 @@ const features = [
 const steps = [
   {
     step: '01',
-    title: 'Create Account',
-    description: 'Sign up for DERIV TECH in seconds.',
+    title: 'Authorize Deriv',
+    description: 'Connect your Deriv account securely.',
   },
   {
     step: '02',
@@ -88,11 +88,8 @@ export default function LandingPage() {
               <a href="#faq" className="text-surface-400 hover:text-white transition-colors text-sm">FAQ</a>
             </div>
             <div className="flex items-center gap-3">
-              <Link href="/login" className="text-sm text-surface-300 hover:text-white transition-colors">
-                Log in
-              </Link>
-              <Link href="/register" className="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded-lg text-sm font-medium transition-colors">
-                Get Started
+              <Link href="/settings/deriv-integration" className="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded-lg text-sm font-medium transition-colors">
+                Connect Deriv
               </Link>
             </div>
           </div>
@@ -116,14 +113,14 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link 
-              href="/register" 
+              href="/settings/deriv-integration"
               className="px-6 py-3 bg-brand-600 hover:bg-brand-700 rounded-lg font-medium transition-colors flex items-center gap-2"
             >
               Connect Deriv
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link 
-              href="/login" 
+              href="/dashboard"
               className="px-6 py-3 border border-surface-700 hover:border-surface-600 rounded-lg font-medium transition-colors text-surface-300"
             >
               Explore Dashboard
@@ -264,7 +261,7 @@ export default function LandingPage() {
                 <li>Basic analytics</li>
               </ul>
               <Link
-                href="/register"
+                href="/settings/deriv-integration"
                 className="block mt-6 py-2 text-center rounded-lg text-sm font-medium transition-colors bg-brand-600 hover:bg-brand-700 text-white"
               >
                 Get Started
@@ -316,7 +313,7 @@ export default function LandingPage() {
             Join Deriv API operators who are already tracking their business with DERIV TECH.
           </p>
           <Link 
-            href="/register" 
+            href="/settings/deriv-integration"
             className="inline-flex items-center gap-2 px-6 py-3 bg-brand-600 hover:bg-brand-700 rounded-lg font-medium transition-colors"
           >
             Connect Deriv

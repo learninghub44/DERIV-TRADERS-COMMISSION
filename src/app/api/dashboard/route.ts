@@ -1,10 +1,23 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getOrgContext } from '@/lib/org';
+import { getGuestConnection } from '@/lib/guest';
 
 export async function GET() {
   const ctx = await getOrgContext();
-  if (!ctx) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+  if (!ctx) {
+    const connection = await getGuestConnection();
+    return NextResponse.json({
+      totalEarnings: 0, totalMarkup: 0, totalCommissions: 0,
+      activeClients: 0, totalContracts: 0, todayMarkup: 0,
+      lastSyncAt: null, connectionStatus: connection ? 'connected' : 'disconnected',
+      recentActivity: [], topClients: [],
+      notification: connection ? null : {
+        type: 'warning', title: 'No Deriv account connected',
+        message: 'Connect your Deriv account to display commission statistics.',
+      },
+    });
+  }
   const { orgId } = ctx;
 
   const integrations = await sql`

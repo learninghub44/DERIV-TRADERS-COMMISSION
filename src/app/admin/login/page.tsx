@@ -129,8 +129,8 @@ export default function AdminLoginPage() {
 
         <p className="text-center text-sm text-surface-500 mt-6">
           Not an admin?{' '}
-          <Link href="/login" className="text-brand-500 hover:text-brand-400 font-medium">
-            Go to customer login
+          <Link href="/dashboard" className="text-brand-500 hover:text-brand-400 font-medium">
+            Go to public dashboard
           </Link>
         </p>
       </div>
